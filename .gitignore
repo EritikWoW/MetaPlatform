@@ -1,3 +1,91 @@
-.venv
-.gitignore
-.idea
+# =========================
+# OS / System
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# =========================
+# IDEs
+# =========================
+.idea/
+.vscode/
+*.iml
+
+# =========================
+# Python caches / bytecode
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# =========================
+# Virtual environments
+# =========================
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# =========================
+# Packaging / build artifacts
+# =========================
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+wheels/
+*.whl
+
+# =========================
+# Test / coverage / tooling
+# =========================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.cache/
+coverage.xml
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Env / secrets
+# =========================
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# Local runtime data (project-specific)
+# =========================
+# Локальные базы/данные лаунчера — обычно не хранятся в git
+MetaDB/
+*.db
+*.sqlite
+*.sqlite3
+*.mpdb
+
+# Если у тебя отдельные файлы журналов/ошибок:
+error.log
+errors.log
+crash.log
+journal.log

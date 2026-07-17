@@ -1,0 +1,17 @@
+QTableView#restrictionsView {
+    border-radius: 16px;
+    border: 1px solid #333;
+}
+
+QTableView#restrictionsView QHeaderView {
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+}
+
+QTableView#restrictionsView QHeaderView::section:first {
+    border-top-left-radius: 16px;
+}
+
+QTableView#restrictionsView QHeaderView::section:last {
+    border-top-right-radius: 16px;
+}

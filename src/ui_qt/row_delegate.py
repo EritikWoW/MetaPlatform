@@ -8,45 +8,47 @@ from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem, QStyle
 
 class WholeRowHoverDelegate(QStyledItemDelegate):
     """
-    Рисует hover/selected фон ЯВНО через painter.fillRect().
-    Работает стабильно даже при QSS.
-    Ожидает, что view (QTableView) имеет поле hovered_row (см. HoverTableView).
+    Рисует hover/selected фон явно через painter.fillRect().
+    Текст НЕ инвертируется и НЕ выделяется — подсвечивается только фон строки.
     """
 
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self._hover_color = QColor(91, 91, 214, 56)   # rgba
-        self._sel_color = QColor(91, 91, 214)         # rgb
+    _HOVER_COLOR = QColor(91, 91, 214, 40)
+    _SEL_COLOR   = QColor(219, 234, 254)   # #DBEAFE — светло-синий фон, текст остаётся тёмным
+    _TEXT_COLOR  = QColor(15, 23, 42)      # #0F172A
 
     def paint(self, painter, option: QStyleOptionViewItem, index) -> None:
-        # Копия option, чтобы безопасно править
         opt = QStyleOptionViewItem(option)
 
         # Убираем фокус-рамку
         opt.state &= ~QStyle.State_HasFocus
 
-        # Определяем selected
         is_selected = bool(opt.state & QStyle.State_Selected)
 
-        # Определяем hovered_row (берём из view)
+        # hover row
         hovered_row = -1
         try:
-            w = opt.widget  # обычно это viewport()
-            view = w.parent() if w is not None else None  # viewport.parent() = QTableView
+            w = opt.widget
+            view = w.parent() if w is not None else None
             if view is not None and hasattr(view, "hovered_row"):
                 hovered_row = int(getattr(view, "hovered_row"))
         except Exception:
-            hovered_row = -1
+            pass
 
         is_hover = (index.row() == hovered_row)
 
-        # Рисуем фон САМИ (так QSS не “съест” подсветку)
+        # Рисуем фон сами — выделение имеет приоритет над hover
         if is_selected:
-            painter.fillRect(opt.rect, QBrush(self._sel_color))
+            painter.fillRect(opt.rect, QBrush(self._SEL_COLOR))
         elif is_hover:
-            painter.fillRect(opt.rect, QBrush(self._hover_color))
+            painter.fillRect(opt.rect, QBrush(self._HOVER_COLOR))
 
-        # Чтобы Qt не рисовал свой фон поверх/вместо нашего:
+        # КЛЮЧЕВОЕ: снимаем State_Selected до вызова super().paint()
+        # Это мешает Qt красить фон и инвертировать цвет текста
+        opt.state &= ~QStyle.State_Selected
         opt.backgroundBrush = Qt.NoBrush
+
+        # Фиксируем цвет текста — всегда тёмный, без инверсии
+        opt.palette.setColor(opt.palette.ColorRole.Text, self._TEXT_COLOR)
+        opt.palette.setColor(opt.palette.ColorRole.HighlightedText, self._TEXT_COLOR)
 
         super().paint(painter, opt, index)
