@@ -40,7 +40,14 @@ class _RuntimeDebuggerPlugin:
         if line <= 0:
             return
         frame.current_line = line
-        if not self._debugger.should_pause(module_id, frame.code.name, line, depth=len(call_stack), frame=frame):
+        if not self._debugger.should_pause(
+            module_id,
+            frame.code.name,
+            line,
+            depth=len(call_stack),
+            frame=frame,
+            call_stack=call_stack,
+        ):
             return
         pause = make_pause_snapshot(
             module_id=module_id,

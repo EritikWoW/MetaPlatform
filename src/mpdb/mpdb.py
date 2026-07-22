@@ -921,6 +921,26 @@ class Mpdb:
         k = str(key).replace('\\', '/').strip()
         if not k or not self._assets_table_exists():
             return []
+        # ``Table.select(where=...)`` still scans data pages after obtaining
+        # secondary-index candidates because ordinary tables may have an
+        # incomplete primary locator after historical migration fast-mode.
+        # ``__assets`` is exempt from that mode, so its unique key index and
+        # rowid locator can be used directly.  This avoids a full locator-table
+        # scan for every form/module/schema asset read.
+        try:
+            table = self.table(ASSETS_TABLE)
+            candidate_rowids = table._try_index({"key": k})
+            if candidate_rowids:
+                indexed_rows = [
+                    row
+                    for rowid in sorted(candidate_rowids)
+                    if (row := table._fetch_row_by_rowid(int(rowid))) is not None
+                    and str(row.get("key") or "").replace('\\', '/').strip() == k
+                ]
+                if indexed_rows:
+                    return indexed_rows
+        except Exception:
+            pass
         try:
             rows = self.table(ASSETS_TABLE).select(where={"key": k})
             if rows:
@@ -2150,6 +2170,14 @@ class Mpdb:
         return HEADER_SIZE + (page_id - 1) * self.page_size
 
     def _read_page_slot(self, page_id: int) -> Tuple[int, int, int, bytes]:
+        # A safe-import swap closes the old Mpdb while background readers may
+        # still hold its Python object.  Serialize cache reads with close() so
+        # a closed handle can never serve pages from its stale LRU cache.
+        with self._lock:
+            self._require_file()
+            return self._read_page_slot_locked(page_id)
+
+    def _read_page_slot_locked(self, page_id: int) -> Tuple[int, int, int, bytes]:
         cached = self._cache.get(page_id)
         if cached is not None:
             try:
@@ -2243,7 +2271,15 @@ class Mpdb:
             # Simpler: create a temporary slot via pack_page_slot.
             # pack_page_slot and PT_DATA are defined in this same module.
             pt = PT_DATA
-            slot = pack_page_slot(self.page_size, int(page_id), pt, raw_payload, self._compressor, lsn=0)
+            slot = pack_page_slot(
+                self.page_size,
+                int(page_id),
+                pt,
+                self._comp_type,
+                raw_payload,
+                self._compressor,
+                lsn=0,
+            )
             pid, ptype, ctype, payload, _lsn = unpack_page_slot(self.page_size, slot, self._compressor)
             # Update cache with recovered slot.
             self._cache.put(page_id, slot)
@@ -2897,7 +2933,26 @@ class Table:
         # try index if possible
         candidate_rowids: Optional[set[int]] = None
         if where:
-            candidate_rowids = self._try_index(where)
+            candidate_rowids = self._safe_try_index(where)
+        used_secondary_index = candidate_rowids is not None
+
+        # Point and narrow indexed reads must not scan every historical data
+        # page. Besides being faster, the primary locator can still be valid
+        # when an old bulk import left a stale page id in ``data_pages``.
+        if candidate_rowids and ordered_rowids is None:
+            indexed_out: List[Dict[str, Any]] = []
+            for rid in sorted(candidate_rowids):
+                try:
+                    row = self._fetch_row_by_rowid(int(rid))
+                except Exception:
+                    row = None
+                if row is None:
+                    continue
+                if where and not _match(row, where):
+                    continue
+                indexed_out.append(row)
+            if indexed_out:
+                return indexed_out
 
         # If we have an ordered list from index, we collect matching rows into a map
         # and then emit them in index order. Rows without the indexed field will be
@@ -2942,6 +2997,16 @@ class Table:
                         tail.append(self.db._restore_strings(data))
 
             out.extend(tail)
+            if not out and used_secondary_index and where:
+                # An index is an accelerator, not a source of truth. A stale
+                # or incomplete index must not hide rows that still exist.
+                for pid in pages:
+                    payload = self.db._read_page(pid)
+                    for _rowid, data in _iter_records(payload):
+                        restored = self.db._restore_strings(data)
+                        if _match(restored, where):
+                            out.append(restored)
+                out.sort(key=lambda x: (x.get(order_by) is None, x.get(order_by)))
             return out
 
         # Fallback: full scan + Python sort.
@@ -2955,6 +3020,14 @@ class Table:
                 if where and not _match(restored, where):
                     continue
                 out.append(restored)
+
+        if not out and used_secondary_index and where:
+            for pid in pages:
+                payload = self.db._read_page(pid)
+                for _rowid, data in _iter_records(payload):
+                    restored = self.db._restore_strings(data)
+                    if _match(restored, where):
+                        out.append(restored)
 
         if order_by:
             # Robust ordering: missing values go last.
@@ -2993,7 +3066,10 @@ class Table:
             if direct_rowid is not None:
                 candidate_rowids = {int(direct_rowid)}
             elif where_local:
-                candidate_rowids = self._try_index(where_local)
+                candidate_rowids = self._safe_try_index(where_local)
+
+            if candidate_rowids is not None and not candidate_rowids and where_local:
+                candidate_rowids = None
 
             if candidate_rowids is None:
                 candidate_rowids = set()
@@ -3085,7 +3161,10 @@ class Table:
         if direct_rowid is not None:
             candidate_rowids = {int(direct_rowid)}
         elif where_local:
-            candidate_rowids = self._try_index(where_local)
+            candidate_rowids = self._safe_try_index(where_local)
+
+        if candidate_rowids is not None and not candidate_rowids and where_local:
+            candidate_rowids = None
 
         if candidate_rowids is None:
             candidate_rowids = set()
@@ -3185,7 +3264,10 @@ class Table:
             if direct_rowid is not None:
                 candidate_rowids = {int(direct_rowid)}
             elif where_local:
-                candidate_rowids = self._try_index(where_local)
+                candidate_rowids = self._safe_try_index(where_local)
+
+            if candidate_rowids is not None and not candidate_rowids and where_local:
+                candidate_rowids = None
 
             if candidate_rowids is None:
                 candidate_rowids = set()
@@ -3361,6 +3443,13 @@ class Table:
             if int(idef["root"]) != int(new_root):
                 idef["root"] = int(new_root)
         # indexes stored in meta; persisted via tx.set_meta(self.db._meta)
+
+    def _safe_try_index(self, where: Dict[str, Any]) -> Optional[set[int]]:
+        """Use an index only when it can be read without compromising correctness."""
+        try:
+            return self._try_index(where)
+        except Exception:
+            return None
 
     def _try_index(self, where: Dict[str, Any]) -> Optional[set[int]]:
         with self.db._lock:

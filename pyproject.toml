@@ -1,2 +1,2 @@
 [tool.pytest.ini_options]
-cache_dir = ".cache/pytest"
+cache_dir = ".cache/pytest-v2"

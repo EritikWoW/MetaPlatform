@@ -688,7 +688,9 @@ class ConfiguratorController(QObject):
         # показываем локализованно по реестру секций.
         try:
             payload = o.payload if isinstance(o.payload, dict) else {}
-            if o.kind == "folder" and payload.get("system"):
+            if o.kind == "root":
+                title = t("cfg_tree_title")
+            elif o.kind == "folder" and payload.get("system"):
                 k = section_i18n_key(str(o.name))
                 if k:
                     title = t(k)
