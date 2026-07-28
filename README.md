@@ -1,70 +1,172 @@
 # MetaPlatform
 
-> **Desktop-first платформа та IDE для розробки metadata-driven бізнес-застосунків.**<br>
+> **Desktop-first платформа та IDE для розробки metadata-driven бізнес-застосунків.**  
 > Product UI and DSL: **Ukrainian (`uk`) / English (`en`)**.
 
-MetaPlatform об'єднує власне файлове сховище `mpdb`, Runtime-сервер, Configurator IDE, клієнтський застосунок, мову модулів і засоби імпорту структури 1C/BAS. Мета проєкту - описувати структуру, форми та поведінку прикладного рішення у Configurator і відтворювати збережену конфігурацію у Client через єдиний Runtime.
+MetaPlatform об'єднує власне файлове сховище `mpdb`, Runtime-сервер, Configurator IDE, клієнтський застосунок, внутрішню мову модулів, редактор форм і засоби імпорту структури 1C/BAS.
+
+Мета проєкту — описувати структуру, форми та поведінку прикладного рішення у Configurator, зберігати їх у єдиній metadata-моделі та відтворювати готову конфігурацію у Client через централізований Runtime.
 
 > [!WARNING]
-> Проєкт перебуває на стадії активної розробки (`experimental / pre-release`). Це не готова заміна 1C/BAS і не production-ready платформа. Формат, API, DSL та UX ще можуть змінюватися.
+> Проєкт перебуває на стадії активної розробки (`experimental / pre-release`). Це не готова заміна 1C/BAS і не production-ready платформа. Формат зберігання, API, DSL, сумісність та UX ще можуть змінюватися.
+
+## OpenAI Build Week 2026
+
+MetaPlatform існувала до початку OpenAI Build Week, однак під час хакатону проєкт був суттєво розширений за допомогою OpenAI Codex і GPT-5.6.
+
+Основними напрямами роботи під час Build Week стали:
+
+- пряме читання структури `.1CD`;
+- перетворення metadata 1C/BAS у внутрішню модель MetaPlatform;
+- відновлення документів, реквізитів, табличних частин та пов'язаних metadata-об'єктів;
+- прискорення точкового доступу до об'єктів через B-tree та row locator у `mpdb`;
+- перенесення live-доступу до робочої бази за межі UI у Runtime RPC;
+- створення Runtime-owned Workspace Semantic Index;
+- фоновий прогрів семантичного індексу без блокування відкриття бази;
+- Runtime-backed completion і навігація між модулями;
+- семантичний пошук використань без помилкових збігів у коментарях і рядках;
+- локальне та конфігураційне перейменування символів;
+- staged-імпорт за схемою `backup -> staging -> validate -> swap`;
+- автоматизована перевірка Configurator через Control API;
+- оптимізація імпорту великих конфігурацій і оновлення дерева metadata;
+- розширення regression, unit, integration та Qt-тестів.
+
+### Що існувало до Build Week
+
+До початку хакатону MetaPlatform вже містила:
+
+- ранню реалізацію файлового рушія `mpdb`;
+- базовий каркас Configurator;
+- дерево metadata-об'єктів;
+- експериментальний редактор форм;
+- прототип Client;
+- початкову реалізацію внутрішньої DSL;
+- експериментальні механізми XML та 1C/BAS-імпорту.
+
+### Як використовувався Codex
+
+Codex з GPT-5.6 використовувався для:
+
+- аналізу великої кодової бази;
+- трасування архітектурних залежностей;
+- планування змін;
+- реалізації та рефакторингу Runtime і Configurator;
+- налагодження прямого `.1CD`-імпорту;
+- пошуку помилок у storage та indexed access;
+- профілювання повільних операцій;
+- створення й покращення автоматизованих тестів;
+- перевірки архітектурних інваріантів;
+- пошуку регресій;
+- документування реалізованих змін і технічних рішень.
+
+Усі продуктові рішення, архітектурні зміни, приймання реалізації та фінальна перевірка виконувалися автором проєкту.
+
+### Build evidence
+
+- Author: **Roman Tishkov**
+- Hackathon commit range: `[FIRST BUILD WEEK COMMIT]` → `[FINAL SUBMISSION COMMIT]`
+- Codex feedback session ID: `[CODEX SESSION ID]`
+- Demo video: `[YOUTUBE VIDEO URL]`
+- Implementation log: [`src/docs/O_PRODELANNOI_RABOTE.md`](src/docs/O_PRODELANNOI_RABOTE.md)
+- Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 
 ## Навіщо MetaPlatform
 
-MetaPlatform розвивається як самостійне середовище розробки бізнес-застосунків, а не як оболонка над зовнішньою СУБД:
+Бізнес-застосунки часто жорстко прив'язані до legacy-платформ, закритих runtime-середовищ і складних форматів конфігурацій.
+
+Перенесення таких систем зазвичай вимагає вручну відтворювати:
+
+- довідники;
+- документи;
+- регістри;
+- звіти;
+- форми;
+- правила перевірки;
+- бізнес-логіку;
+- права доступу;
+- інтерфейс користувача.
+
+MetaPlatform досліджує інший підхід: прикладне рішення описується єдиною metadata-моделлю, а Runtime використовує цю модель для збереження, редагування та виконання бізнес-застосунку.
+
+Імпорт 1C/BAS використовується як міст для аналізу й перенесення наявних рішень, а не як архітектурна основа платформи.
+
+## Основні принципи
 
 - конфігурація описується metadata-об'єктами з GUID;
 - Manifest у `mpdb` є джерелом істини для структури конфігурації;
-- Configurator і Client звертаються до live-бази через Runtime RPC;
-- форми та модулі зберігаються разом із конфігурацією;
-- українська й англійська локалі є штатними мовами UI та DSL;
-- імпорт 1C/BAS використовується як міст для перенесення структури, а не як архітектурна основа платформи.
+- Configurator і Client працюють із live-базою через Runtime RPC;
+- форми, модулі та assets зберігаються разом із конфігурацією;
+- українська й англійська мови є штатними мовами UI та DSL;
+- Runtime є єдиним власником live-доступу до робочої бази;
+- імпорт виконується через staging і валідацію перед заміною активної бази.
 
 ## Поточні можливості
 
 ### Configurator IDE
 
 - дерево конфігурації та metadata-об'єктів;
-- редактори довідників, документів, звітів, обробок та інших типів метаданих;
-- редактор форм з деревом елементів, реквізитами, командами, параметрами та runtime-preview;
-- редактор модулів з підсвічуванням, локальним і Runtime-backed completion, діагностикою та навігацією;
-- completion експортних процедур і функцій після імені загального модуля без завантаження його вихідного тексту в активний редактор;
-- `F12` / `Ctrl+Click` для точкового переходу до визначення через Runtime без завантаження чужого модуля в UI;
-- `Shift+F12` для семантичного пошуку використань, що виключає коментарі та рядкові літерали;
-- `Shift+F6` для семантичного перейменування символів у межах одного модуля;
-- `Ctrl+Shift+F6` для preview та атомарного перейменування експортної процедури або функції у всій конфігурації;
-- точки зупинки, покрокове виконання, call stack, locals/globals та обчислення debug-виразів;
-- робота зі стартовими, загальними й формовими модулями;
-- фоновий Control API для автоматизованої перевірки Configurator.
+- редактори довідників, документів, звітів, обробок та інших типів metadata;
+- редактор форм із деревом елементів;
+- реквізити, параметри, команди та runtime-preview форм;
+- редактор модулів із підсвічуванням синтаксису;
+- локальний і Runtime-backed completion;
+- діагностика та навігація по вихідному коду;
+- completion експортних процедур і функцій після імені загального модуля;
+- `F12` і `Ctrl+Click` для переходу до визначення;
+- `Shift+F12` для семантичного пошуку використань;
+- `Shift+F6` для перейменування символу в межах модуля;
+- `Ctrl+Shift+F6` для preview та атомарного перейменування експортного символу в конфігурації;
+- точки зупинки;
+- покрокове виконання;
+- call stack;
+- locals і globals;
+- обчислення debug-виразів;
+- стартові, загальні, об'єктні та формові модулі;
+- фоновий Configurator Control API для автоматизованої перевірки.
 
 ### Runtime
 
 - локальний HTTP/JSON-RPC сервер;
 - сесії та централізоване відкриття live-баз;
 - операції з Manifest, таблицями, модулями та assets;
-- кеш структури, текстів модулів і Runtime-owned Workspace Semantic Index;
-- фоновий прогрів семантичного індексу після відкриття БД без блокування `db.open`;
-- runtime-сервіси для форм, звітів, друку та проведення;
 - реєстр доступних баз;
-- staged-імпорт за схемою `backup -> staging -> validate -> swap`.
+- кеш структури;
+- кеш текстів модулів;
+- Runtime-owned Workspace Semantic Index;
+- фоновий прогрів семантичного індексу;
+- Runtime-сервіси для форм, звітів, друку та проведення;
+- staged-імпорт за схемою `backup -> staging -> validate -> swap`;
+- CLI та Qt-інструменти адміністрування.
 
 ### Client
 
 - окремий Qt-застосунок для роботи користувача;
 - навігація за підсистемами та metadata-об'єктами;
 - завантаження структури через Runtime;
-- побудова форм із збереженої моделі;
+- побудова форм зі збереженої моделі;
 - виконання стартових і прикладних модулів;
-- контекстні дії полів, таблиці, команди та стандартні реквізити.
+- контекстні дії полів;
+- таблиці;
+- команди;
+- стандартні реквізити.
 
 ### Storage і tooling
 
 - власний файловий рушій `mpdb`;
-- WAL/recovery, allocator сторінок, CRC та підтримка стиснення;
+- Manifest metadata;
+- таблиці та assets;
+- allocator сторінок;
+- B-tree-based access;
+- row locators;
+- WAL і recovery;
+- CRC сторінок;
+- підтримка стиснення;
 - високорівневий `mp_platform` API;
-- lexer, parser, validator, compiler/VM та debugger внутрішнього DSL;
-- імпорт metadata-структури з XML і пряме читання `.1CD`;
-- CLI/Qt-інструменти адміністрування Runtime;
-- self-check, unit, integration та Qt-тести.
+- lexer, parser, validator, compiler, VM і debugger внутрішньої DSL;
+- імпорт metadata з XML;
+- пряме читання `.1CD`;
+- self-check;
+- unit, integration та Qt-тести.
 
 ## Архітектура
 
@@ -101,48 +203,63 @@ Configurator / Client
         -> mpdb
 ```
 
-Runtime є єдиним власником live-доступу до робочої бази. UI не повинен паралельно відкривати production/local `mpdb` напряму. Structure cache прискорює старт, але не замінює Manifest як джерело істини.
+Runtime є єдиним власником live-доступу до робочої бази. UI не повинен паралельно відкривати production або local `mpdb` напряму.
 
-Докладніше: [ARCHITECTURE.md](ARCHITECTURE.md).
+Structure cache прискорює запуск, але не замінює Manifest як джерело істини.
 
-## Вимоги
+Докладніше: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-Фактично перевірене середовище розробки:
+## Judge Quick Start
+
+MetaPlatform наразі запускається з вихідного коду.
+
+Готовий installer і повністю відтворюваний packaged release ще перебувають у розробці.
+
+### Перевірене середовище
 
 - Windows 10/11;
-- Python 3.13 (поточне локальне середовище перевірено на Python 3.13.11);
-- PySide6 для desktop UI;
-- PowerShell для наведених нижче команд.
+- Python 3.13;
+- PowerShell;
+- PySide6.
 
-Код використовує синтаксис Python 3.10+, але окрема матриця сумісності для старіших версій Python поки не підтримується.
+Поточне локальне середовище перевірено на Python 3.13.11.
 
-У репозиторії ще немає повного package/dependency manifest: кореневий `pyproject.toml` містить лише конфігурацію `pytest`, а lock-файл відсутній. Для поточного дерева вихідного коду використовуються:
-
-- `PySide6` - Configurator, Client, Launcher і Runtime Admin UI;
-- `pytest` - тестовий набір;
-- `zstandard` - опціональне ZSTD-стиснення `mpdb`;
-- `Pillow` і `openpyxl` - окремі імпортні та прикладні інструменти;
-- `pywin32` - лише Windows/COM-сценарії аудиту 1C.
-
-Приклад локального development-середовища:
+### 1. Клонування репозиторію
 
 ```powershell
-git clone <repository-url> MetaPlatform
+git clone https://github.com/EritikWoW/MetaPlatform.git
 Set-Location MetaPlatform
+```
 
+### 2. Створення віртуального середовища
+
+```powershell
 py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
+```
+
+Якщо PowerShell блокує активацію:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+Після цього повторно активуйте `.venv`.
+
+### 3. Встановлення залежностей
+
+```powershell
 python -m pip install --upgrade pip
 python -m pip install PySide6 pytest zstandard Pillow openpyxl pywin32
 ```
 
-Це тимчасовий development setup, а не зафіксований release-профіль залежностей.
+### 4. Перевірка середовища
 
-## Швидкий старт
+```powershell
+python -m src.scripts.selfcheck
+```
 
-Усі команди виконуються з кореня репозиторію в активованому `.venv`.
-
-### Рекомендовано: Launcher
+### 5. Запуск MetaPlatform
 
 ```powershell
 python -m src.scripts.run_launcher_qt
@@ -150,24 +267,53 @@ python -m src.scripts.run_launcher_qt
 
 Launcher дозволяє:
 
-- створити або додати локальну `.mpdb`;
+- створити локальну `.mpdb`;
+- додати наявну `.mpdb`;
 - додати віддалену базу за Runtime URL і GUID;
-- автоматично підняти локальний Runtime;
-- відкрити Configurator або Client з потрібним контекстом.
+- автоматично запустити локальний Runtime;
+- відкрити Configurator;
+- відкрити Client.
 
-Для запуску Configurator у процесі Launcher:
+## Рекомендований demo flow
+
+1. Запустіть Launcher.
+2. Створіть або додайте локальну `.mpdb`.
+3. Відкрийте базу у Configurator.
+4. Перегляньте дерево metadata.
+5. Відкрийте документ, його реквізити та табличні частини.
+6. Відкрийте модуль і перевірте completion.
+7. Використайте `F12` для переходу до визначення.
+8. Використайте `Shift+F12` для пошуку використань.
+9. Відкрийте редактор форми та runtime-preview.
+10. Запустіть Client для тієї самої бази.
+
+Для додаткової демонстрації можна відкрити локальну `.1CD`, яку користувач має право аналізувати та обробляти.
+
+## Ручний запуск компонентів
+
+### Launcher
+
+```powershell
+python -m src.scripts.run_launcher_qt
+```
+
+Запуск Configurator у процесі Launcher для UI debugging:
 
 ```powershell
 python -m src.scripts.run_launcher_qt --debug-ui
 ```
 
-### Ручний запуск Runtime
+### Runtime Server
 
 ```powershell
 python -m src.scripts.run_runtime_server_cmd --host 127.0.0.1 --port 8765
 ```
 
-Сервер за замовчуванням слухає `http://127.0.0.1:8765`.
+Runtime за замовчуванням слухає:
+
+```text
+http://127.0.0.1:8765
+```
 
 ### Реєстрація `.mpdb`
 
@@ -176,15 +322,21 @@ python -m src.scripts.run_runtime_admin add "C:\Data\Demo\metabase.mpdb" --name 
 python -m src.scripts.run_runtime_admin list
 ```
 
-Команда `add` виводить GUID бази. Реєстр також підтримує `remove`, `enable` і `disable`.
+Команда `add` повертає GUID бази.
 
-Графічний Runtime Admin:
+Реєстр також підтримує:
+
+- `remove`;
+- `enable`;
+- `disable`.
+
+### Runtime Admin UI
 
 ```powershell
 python -m src.scripts.run_runtime_admin_qt
 ```
 
-### Запуск Configurator
+### Configurator
 
 ```powershell
 python -m src.configurator.configurator_app `
@@ -193,11 +345,30 @@ python -m src.configurator.configurator_app `
   --db-path "C:\Data\Demo\metabase.mpdb"
 ```
 
-Параметр `--db-path` передає локальну `.mpdb` або `.1CD` для відкриття через Runtime. Configurator також читає `META_RUNTIME_URL`, `META_DB_UID` і `META_DB_PATH`.
+`--db-path` може містити шлях до локальної `.mpdb` або підтриманої `.1CD`, яку Runtime повинен відкрити.
 
-Локальний Configurator Control API за замовчуванням використовує `127.0.0.1:8766`; адресу можна змінити параметрами `--control-api-host` і `--control-api-port`.
+Configurator також підтримує змінні середовища:
 
-### Запуск Client
+```text
+META_RUNTIME_URL
+META_DB_UID
+META_DB_PATH
+```
+
+Configurator Control API за замовчуванням використовує:
+
+```text
+127.0.0.1:8766
+```
+
+Адресу можна змінити параметрами:
+
+```text
+--control-api-host
+--control-api-port
+```
+
+### Client
 
 ```powershell
 python -m src.client.client_app `
@@ -205,29 +376,55 @@ python -m src.client.client_app `
   --db-uid <database-guid>
 ```
 
-Client потребує URL Runtime і GUID відкритої/зареєстрованої бази. Альтернативно можна задати `META_RUNTIME_URL` та `META_DB_UID`.
+Client потребує:
+
+- URL Runtime;
+- GUID відкритої або зареєстрованої бази.
+
+Також підтримуються:
+
+```text
+META_RUNTIME_URL
+META_DB_UID
+```
 
 ## Перевірка
 
-Швидкий regression self-check:
+### Regression self-check
 
 ```powershell
 python -m src.scripts.selfcheck
 ```
 
-Повний тестовий набір:
+Self-check перевіряє базові:
+
+- Manifest policies;
+- SVG pipeline;
+- debugger smoke scenarios.
+
+### Повний тестовий набір
 
 ```powershell
 python -m pytest -q src/tests
 ```
 
-Перевірка компіляції Python-модулів:
+Набір тестів містить перевірки:
+
+- storage;
+- WAL і recovery;
+- Runtime;
+- importer;
+- DSL;
+- Configurator;
+- Client;
+- Qt-компонентів;
+- integration scenarios.
+
+### Перевірка компіляції Python-модулів
 
 ```powershell
 python -m compileall -q src
 ```
-
-`selfcheck` перевіряє базові manifest-політики, SVG pipeline і smoke-сценарій debugger. Основний набір у `src/tests` містить storage, Runtime, importer, DSL, Configurator, Client та Qt-тести.
 
 ## Структура репозиторію
 
@@ -235,20 +432,20 @@ python -m compileall -q src
 MetaPlatform/
 |-- src/
 |   |-- mpdb/           # файловий storage engine, WAL і recovery
-|   |-- runtime/        # HTTP/JSON-RPC сервер та runtime services
-|   |-- configurator/   # Configurator IDE, application/domain/persistence
-|   |-- client/         # клієнтський застосунок і runtime forms
-|   |-- ui_qt/          # спільний Qt UI, launcher, themes, i18n, widgets
-|   |-- dsl/            # lexer, parser, validator, compiler, VM, debugger
+|   |-- runtime/        # HTTP/JSON-RPC сервер та Runtime services
+|   |-- configurator/   # Configurator IDE
+|   |-- client/         # Client і Runtime forms
+|   |-- ui_qt/          # спільний Qt UI, Launcher, themes та widgets
+|   |-- dsl/            # lexer, parser, validator, compiler, VM і debugger
 |   |-- infra/onec/     # читання і трансформація 1C/BAS
 |   |-- mp_platform/    # високорівневий platform API
-|   |-- scripts/        # точки запуску, selfcheck та audit tools
+|   |-- scripts/        # entry points, self-check та audit tools
 |   |-- tools/          # службові CLI-інструменти
 |   |-- tests/          # автоматизовані тести
-|   `-- docs/           # журнал рішень та технічна документація
+|   `-- docs/           # технічна документація та журнал реалізації
 |-- AGENTS.md           # правила роботи з репозиторієм
 |-- ARCHITECTURE.md     # архітектурний опис
-|-- pyproject.toml      # поточні pytest settings
+|-- pyproject.toml      # поточна конфігурація проєкту і pytest
 `-- README.md
 ```
 
@@ -259,7 +456,7 @@ MetaPlatform/
 - Ukrainian (`uk`);
 - English (`en`).
 
-Імпортований код 1C/BAS може містити російські ідентифікатори й сумісний синтаксис, але російська локаль не є цільовою UI-локаллю MetaPlatform.
+Імпортований код 1C/BAS може містити російські ідентифікатори та сумісний синтаксис, але російська локаль не є цільовою UI-локаллю MetaPlatform.
 
 ## Статус зрілості
 
@@ -268,40 +465,93 @@ MetaPlatform/
 | `mpdb`, WAL/recovery | Реалізовано, активно тестується |
 | Runtime RPC і реєстр БД | Реалізовано, API ще не стабілізовано |
 | Configurator IDE | Активна розробка |
-| Редактор форм і runtime-preview | Працює для підтриманих моделей, покриття форматів неповне |
-| DSL, VM і debugger | Працюючий experimental toolchain, не повна сумісність з 1C |
-| Client | Відтворює підтриману metadata/form-модель, функціональність розширюється |
-| Імпорт XML/`.1CD` | Підтримує значну частину metadata-структури, не гарантує повну міграцію |
-| Packaging / installer / releases | Не готово |
+| Редактор форм і runtime-preview | Працює для підтриманих моделей |
+| DSL, compiler, VM і debugger | Працюючий experimental toolchain |
+| Client | Відтворює підтриману metadata/form-модель |
+| XML import | Підтримується |
+| Direct `.1CD` import | Підтримує значну частину metadata-структури |
+| Packaging | Не готово |
+| Installer | Не готово |
+| Stable public API | Відсутній |
 
 ## Відомі обмеження
 
-- Немає стабільного публічного API або гарантій backward compatibility.
-- Немає dependency lock, інсталятора та відтворюваного release build.
+- Немає стабільного публічного API.
+- Не гарантується backward compatibility.
+- Немає dependency lock.
+- Немає відтворюваного packaged release.
+- Немає installer.
 - Імпорт 1C/BAS не означає повної бінарної, мовної або поведінкової сумісності.
-- Не всі формати форм, макетів і metadata-об'єктів підтримані однаково.
-- DSL/VM реалізує лише підтриману підмножину прикладної логіки.
-- Локальне семантичне перейменування працює в одному module asset; cross-module режим наразі підтримує лише експортні процедури й функції з точними кваліфікованими викликами.
+- Не всі формати форм і metadata-об'єктів підтримані однаково.
+- DSL і VM реалізують лише підтриману підмножину прикладної логіки.
+- Локальне семантичне перейменування працює в межах одного module asset.
+- Cross-module rename наразі підтримує експортні процедури та функції з точними кваліфікованими викликами.
 - Частина історичного коду все ще переходить від direct DB access до Runtime RPC.
-- Runtime Control API та Configurator Control API призначені передусім для локальної розробки й автоматизованої перевірки.
-- Linux/macOS не входять до фактично перевіреної desktop-матриці.
+- Runtime Control API і Configurator Control API призначені передусім для локальної розробки та автоматизованої перевірки.
+- Linux і macOS не входять до фактично перевіреної desktop-матриці.
+
+## Безпека та робота з даними
+
+MetaPlatform може обробляти локальні бази бізнес-застосунків і metadata.
+
+Користувач відповідає за:
+
+- використання лише тих баз, до яких він має законний доступ;
+- захист конфіденційної бізнес-інформації;
+- недопущення публікації реальних клієнтських баз;
+- видалення персональних даних і credentials із demo-матеріалів;
+- створення резервних копій перед імпортом або модифікацією баз.
+
+Staged-імпорт знижує ризик пошкодження активної бази MetaPlatform, але проєкт залишається експериментальним.
 
 ## Документація
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - фактична й цільова архітектура;
-- [AGENTS.md](AGENTS.md) - інваріанти та правила роботи з кодовою базою;
-- [src/docs/O_PRODELANNOI_RABOTE.md](src/docs/O_PRODELANNOI_RABOTE.md) - журнал реалізованих змін, перевірок і прийнятих рішень.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — фактична й цільова архітектура;
+- [`AGENTS.md`](AGENTS.md) — інваріанти та правила роботи з кодовою базою;
+- [`src/docs/O_PRODELANNOI_RABOTE.md`](src/docs/O_PRODELANNOI_RABOTE.md) — журнал реалізованих змін, перевірок і прийнятих рішень.
 
 ## Участь у розробці
 
 Перед зміною архітектурного контуру:
 
-1. звірте фактичний код із `ARCHITECTURE.md`;
-2. перевірте інваріанти в `src/docs/O_PRODELANNOI_RABOTE.md`;
-3. не відкривайте live `mpdb` паралельно з UI в обхід Runtime;
-4. додайте або оновіть тести;
-5. виконайте `selfcheck` і профільний `pytest` gate.
+1. Звірте фактичний код із `ARCHITECTURE.md`.
+2. Перевірте інваріанти у `src/docs/O_PRODELANNOI_RABOTE.md`.
+3. Не відкривайте live `mpdb` паралельно з UI в обхід Runtime.
+4. Додайте або оновіть тести.
+5. Виконайте `selfcheck`.
+6. Виконайте відповідний `pytest` gate.
+7. Задокументуйте значні архітектурні рішення.
+
+## Roadmap
+
+- dependency management і lock-файл;
+- packaged Windows build;
+- installer;
+- стабільний release profile;
+- Runtime API versioning;
+- розширення покриття metadata-імпорту;
+- підтримка більшої кількості форматів форм;
+- розвиток Client;
+- розширення cross-module semantic analysis;
+- покращення debugger;
+- додаткові migration tools;
+- дослідження сумісності з Linux і macOS;
+- приклади конфігурацій і документація.
+
+## Автор
+
+**Roman Tishkov**
+
+MetaPlatform — незалежний експериментальний проєкт, присвячений metadata-driven розробці бізнес-застосунків, міграції legacy-конфігурацій і Runtime-based виконанню прикладних рішень.
 
 ## Ліцензія
 
-У репозиторії поки немає файлу `LICENSE`. До вибору та публікації ліцензії умови зовнішнього використання, модифікації й розповсюдження проєкту не визначені.
+До репозиторію необхідно додати окремий файл `LICENSE`.
+
+Рекомендовані варіанти:
+
+- **Apache License 2.0** — permissive open-source ліцензія з явними patent clauses;
+- **MIT License** — коротка permissive open-source ліцензія;
+- власна proprietary license — якщо зовнішнє використання та поширення мають бути обмежені.
+
+До публікації `LICENSE` дозвіл на зовнішнє використання, модифікацію або поширення коду не надається.
