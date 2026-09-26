@@ -1,0 +1,6 @@
+QFrame#FormWindowClient QTableView {
+    background: $light_panel;
+    border: 1px solid $border_soft;
+    border-radius: 12px;
+    gridline-color: rgba(0,0,0,18);
+}

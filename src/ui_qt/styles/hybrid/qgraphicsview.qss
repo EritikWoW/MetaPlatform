@@ -1,0 +1,5 @@
+QGraphicsView#FormCanvas {
+    background: $light_panel;
+    border: 1px solid $border_soft;
+    border-radius: 12px;
+}

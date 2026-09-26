@@ -1,0 +1,22 @@
+QGroupBox[mp_form_group_chrome="groupbox"] {
+    border: 1px solid $FORM_BORDER;
+    border-radius: 10px;
+    margin-top: 14px;
+    padding: 12px;
+    background: $FORM_CARD_BG;
+}
+
+QGroupBox[mp_form_group_chrome="groupbox"][mp_form_group_level="weak"] {
+    border-color: #EDF2F7;
+}
+
+QGroupBox[mp_form_group_chrome="groupbox"][mp_form_group_level="strong"] {
+    border-color: $FORM_BORDER_STRONG;
+}
+
+QGroupBox[mp_form_group_chrome="groupbox"]::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 6px;
+    color: $FORM_MUTED;
+}

@@ -84,6 +84,26 @@ MetaDB/
 *.sqlite3
 *.mpdb
 
+# Local source dumps, migration inputs and diagnostic output
+WorkedData/
+.artifacts/
+.tmp/
+.tmp_pytest/
+.tmp_pytest_cache/
+.pytest-tmp/
+_pytest_tmp/
+.cache_pytest/
+.cache_pytest_local/
+.codex/
+.agents/
+.claude/
+_external/
+src.zip
+*.psd
+tmp_diag.py
+src/ui_qt/widgets/test_write.txt
+*MetaPlatformWorkedData*.txt
+
 # Если у тебя отдельные файлы журналов/ошибок:
 error.log
 errors.log

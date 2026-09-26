@@ -1,0 +1,15 @@
+QLineEdit {
+    background: $PANEL;
+    border: 1px solid $BORDER;
+    border-radius: 8px;
+    padding: 6px 10px;
+}
+
+QTreeView QLineEdit {
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: none;
+    background: $ACCENT;
+    color: #FFFFFF;
+    margin: 0;
+}

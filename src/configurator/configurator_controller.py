@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QMenu, QStyle, QApplication
 
 from src.ui_qt.i18n import t
 from src.core.object_policies import section_i18n_key
+from src.configurator.domain.technical_names import technical_object_name
 from src.ui_qt.services.tree_builder import build_tree_model, prepare_tree_objects
 from src.ui_qt.services.icon_provider import IconProvider
 
@@ -694,6 +695,8 @@ class ConfiguratorController(QObject):
                 k = section_i18n_key(str(o.name))
                 if k:
                     title = t(k)
+            if o.kind == "object":
+                title = technical_object_name(o.name, payload=payload)
         except (TypeError, KeyError, AttributeError, ValueError):
             pass
         it = QStandardItem(title)

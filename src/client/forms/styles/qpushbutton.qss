@@ -1,0 +1,136 @@
+QPushButton[mp_form_command="true"] {
+    background: $FORM_CARD_BG;
+    color: $FORM_TEXT;
+    border: 1px solid $FORM_BORDER_STRONG;
+    border-radius: 10px;
+    padding: 7px 14px;
+    min-height: 38px;
+    font-weight: 500;
+}
+
+QPushButton[mp_form_command="true"][mp_form_cmdbar_action="true"] {
+    background: transparent;
+    color: $FORM_MUTED;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    min-height: 28px;
+    padding: 3px 10px;
+    font-weight: 500;
+}
+
+QPushButton[mp_form_command="true"][mp_form_cmdbar_action="true"]:hover {
+    background: $FORM_ACCENT_BG;
+    border-color: $FORM_BORDER;
+    color: $FORM_TEXT;
+}
+
+QPushButton[mp_form_command="true"][mp_form_cmdbar_action="true"]:pressed {
+    background: $FORM_PRIMARY_SOFT;
+    border-color: #BFDBFE;
+}
+
+QPushButton[mp_form_command="true"][mp_form_cmdbar_action="true"][mp_primary_command="true"] {
+    background: $FORM_PRIMARY;
+    color: #FFFFFF;
+    border: 1px solid $FORM_PRIMARY;
+    border-radius: 10px;
+    min-height: 30px;
+    min-width: 92px;
+    padding: 4px 12px;
+    font-weight: 600;
+}
+
+QPushButton[mp_form_command="true"][mp_form_cmdbar_action="true"][mp_primary_command="true"]:hover {
+    background: $FORM_PRIMARY_HOVER;
+    border-color: $FORM_PRIMARY_HOVER;
+}
+
+QPushButton[mp_form_command="true"][mp_form_cmdbar_action="true"][mp_primary_command="true"]:pressed {
+    background: $FORM_PRIMARY_ACTIVE;
+    border-color: $FORM_PRIMARY_ACTIVE;
+}
+
+QPushButton[mp_form_command="true"]:hover {
+    background: $FORM_TABLE_HEADER;
+    border-color: #94A3B8;
+}
+
+QPushButton[mp_form_command="true"]:pressed {
+    background: #E2E8F0;
+}
+
+QPushButton[mp_form_command="true"][mp_form_standalone_button="true"] {
+    background: $FORM_PRIMARY;
+    color: #FFFFFF;
+    border: 1px solid $FORM_PRIMARY;
+    border-radius: 10px;
+    min-height: 38px;
+    min-width: 104px;
+    padding: 7px 16px;
+    font-weight: 600;
+}
+
+QPushButton[mp_form_command="true"][mp_form_standalone_button="true"]:hover {
+    background: $FORM_PRIMARY_HOVER;
+    border-color: $FORM_PRIMARY_HOVER;
+    color: #FFFFFF;
+}
+
+QPushButton[mp_form_command="true"][mp_form_standalone_button="true"]:pressed {
+    background: $FORM_PRIMARY_ACTIVE;
+    border-color: $FORM_PRIMARY_ACTIVE;
+    color: #FFFFFF;
+}
+
+QPushButton[mp_form_command="true"][mp_button_variant="ghost"] {
+    background: transparent;
+    border-color: transparent;
+    color: $FORM_MUTED;
+}
+
+QPushButton[mp_form_command="true"][mp_button_variant="ghost"]:hover {
+    background: $FORM_TABLE_HEADER;
+    border-color: $FORM_BORDER;
+    color: $FORM_TEXT;
+}
+
+QPushButton[mp_form_command="true"][mp_primary_command="true"],
+QPushButton[mp_form_command="true"][mp_button_variant="primary"] {
+    background: $FORM_PRIMARY;
+    color: #FFFFFF;
+    border-color: $FORM_PRIMARY;
+    font-weight: 600;
+}
+
+QPushButton[mp_form_command="true"][mp_primary_command="true"]:hover,
+QPushButton[mp_form_command="true"][mp_button_variant="primary"]:hover {
+    background: $FORM_PRIMARY_HOVER;
+    border-color: $FORM_PRIMARY_HOVER;
+}
+
+QPushButton[mp_form_command="true"][mp_primary_command="true"]:pressed,
+QPushButton[mp_form_command="true"][mp_button_variant="primary"]:pressed {
+    background: $FORM_PRIMARY_ACTIVE;
+    border-color: $FORM_PRIMARY_ACTIVE;
+}
+
+QPushButton[mp_tp_action="true"] {
+    background: transparent;
+    color: $FORM_MUTED;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    min-height: 32px;
+    padding: 5px 10px;
+    font-weight: 500;
+}
+
+QPushButton[mp_tp_action="true"]:hover {
+    background: $FORM_TABLE_HEADER;
+    color: $FORM_TEXT;
+    border-color: $FORM_BORDER;
+}
+
+QPushButton[mp_tp_action="true"]:pressed {
+    background: $FORM_PRIMARY_SOFT;
+    border-color: #BFDBFE;
+}

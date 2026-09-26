@@ -465,8 +465,12 @@ if __name__ == "__main__":
     parser.add_argument("--list-tables", action="store_true", help="Показать список всех физических таблиц в .1CD")
     parser.add_argument("--view-table", help="Показать содержимое конкретной таблицы")
     parser.add_argument("--limit", type=int, default=20, help="Лимит строк для просмотра (по умолчанию 20)")
+    parser.add_argument("--data-limit", type=int, default=None,
+                        help="Explicit sample limit per imported table; default imports all rows")
     
     args = parser.parse_args()
+    if args.data_limit is not None and args.data_limit <= 0:
+        parser.error("--data-limit must be positive; omit it for a complete import")
 
     if args.import_data:
         if not args.db:
@@ -480,7 +484,7 @@ if __name__ == "__main__":
                 target_db,
                 args.src,
                 table_names=args.table,
-                limit_per_table=args.limit if args.limit and args.limit > 0 else None,
+                limit_per_table=args.data_limit,
                 include_service=bool(args.include_service),
                 include_deleted=bool(args.include_deleted),
                 build_refs=not bool(args.no_ref_index),

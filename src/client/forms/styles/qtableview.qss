@@ -1,0 +1,42 @@
+QTableView[mp_form_table="true"] {
+    background: $FORM_CARD_BG;
+    color: $FORM_TEXT;
+    alternate-background-color: $FORM_SURFACE_BG;
+    border: 1px solid $FORM_BORDER;
+    border-radius: 12px;
+    gridline-color: $FORM_BORDER;
+    selection-background-color: $FORM_PRIMARY_SOFT;
+    selection-color: $FORM_TEXT;
+}
+
+QTableView[mp_form_table="true"]::item {
+    padding: 6px 8px;
+    border: none;
+}
+
+QTableView[mp_form_table="true"]::item:selected {
+    background: $FORM_PRIMARY_SOFT;
+    color: $FORM_TEXT;
+}
+
+QTableView[mp_form_table="true"]::item:selected:hover {
+    background: $FORM_PRIMARY_SOFT;
+    color: $FORM_TEXT;
+}
+
+QTableView[mp_form_table="true"] QTableCornerButton::section {
+    background: $FORM_TABLE_HEADER;
+    border: none;
+    border-right: 1px solid $FORM_BORDER;
+    border-bottom: 1px solid $FORM_BORDER;
+}
+
+QTableView[mp_form_table="true"] QHeaderView::section {
+    background: $FORM_TABLE_HEADER;
+    color: $FORM_MUTED;
+    border: none;
+    border-right: 1px solid $FORM_BORDER;
+    border-bottom: 1px solid $FORM_BORDER;
+    padding: 10px 14px;
+    font-weight: 600;
+}

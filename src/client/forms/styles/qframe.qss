@@ -1,0 +1,54 @@
+QFrame[mp_form_surface_root="true"] {
+    background: $FORM_SURFACE_BG;
+    border: 1px solid $FORM_BORDER;
+    border-radius: 14px;
+}
+
+QFrame[mp_form_group_chrome="layout"] {
+    background: transparent;
+    border: none;
+}
+
+QFrame[mp_form_group_chrome="frame"][mp_form_group_level="usual"] {
+    border: 1px solid $FORM_BORDER;
+    border-radius: 10px;
+    background: $FORM_CARD_BG;
+}
+
+QFrame[mp_form_group_chrome="frame"][mp_form_group_level="weak"] {
+    border: 1px solid #EDF2F7;
+    border-radius: 10px;
+    background: $FORM_CARD_BG;
+}
+
+QFrame[mp_form_group_chrome="frame"][mp_form_group_level="strong"] {
+    border: 1px solid $FORM_BORDER_STRONG;
+    border-radius: 10px;
+    background: $FORM_CARD_BG;
+}
+
+QFrame[mp_form_cmdbar="true"] {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid $FORM_BORDER;
+}
+
+QFrame[mp_form_statusbar="true"] {
+    background: transparent;
+    border: none;
+    border-top: 1px solid $FORM_BORDER;
+}
+
+QFrame[mp_form_table_panel="true"] {
+    background: $FORM_CARD_BG;
+    border: 1px solid $FORM_BORDER;
+    border-radius: 14px;
+}
+
+QFrame[mp_form_table_toolbar="true"] {
+    background: $FORM_CARD_BG;
+    border: none;
+    border-bottom: 1px solid $FORM_BORDER;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+}

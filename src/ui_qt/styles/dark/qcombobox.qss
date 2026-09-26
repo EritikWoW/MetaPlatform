@@ -1,0 +1,28 @@
+QComboBox {
+    background: $PANEL_2;
+    color: $FG;
+    border: 1px solid $BORDER;
+    padding: 5px 6px 6px 5px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+QComboBox::drop-down {
+    border: 0;
+    width: 20px;
+}
+
+QComboBox::down-arrow {
+    image: url($arrow_icon);
+    padding: 5px 8px 2px 0;
+    width: 12px;
+    height: 12px;
+}
+
+QComboBox QAbstractItemView {
+    background: $PANEL;
+    color: $FG;
+    selection-background-color: $ACCENT;
+    border: 1px solid $BORDER;
+    outline: 0;
+}

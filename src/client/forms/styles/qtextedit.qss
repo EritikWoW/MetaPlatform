@@ -1,0 +1,19 @@
+QTextEdit[mp_form_editor="true"] {
+    background: $FORM_CARD_BG;
+    color: $FORM_TEXT;
+    border: 1px solid $FORM_BORDER_STRONG;
+    border-radius: 10px;
+    padding: 7px 12px;
+    padding-top: 8px;
+    min-height: 16px;
+    selection-background-color: $FORM_PRIMARY_SOFT;
+    selection-color: $FORM_TEXT;
+}
+
+QTextEdit[mp_form_editor="true"]:focus {
+    border: 1px solid $FORM_PRIMARY;
+}
+
+QTextEdit[mp_form_editor="true"]:hover {
+    border-color: #94A3B8;
+}

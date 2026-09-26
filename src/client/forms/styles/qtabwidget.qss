@@ -1,0 +1,29 @@
+QTabWidget[mp_form_tabs="true"]::pane {
+    background: $FORM_CARD_BG;
+    border: 1px solid $FORM_BORDER;
+    border-radius: 12px;
+    top: -1px;
+}
+
+QTabWidget[mp_form_tabs="true"] QTabBar::tab {
+    background: transparent;
+    color: $FORM_MUTED;
+    border: 1px solid transparent;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    padding: 10px 16px;
+    margin-right: 6px;
+}
+
+QTabWidget[mp_form_tabs="true"] QTabBar::tab:hover {
+    background: $FORM_TABLE_HEADER;
+    color: $FORM_TEXT;
+}
+
+QTabWidget[mp_form_tabs="true"] QTabBar::tab:selected {
+    background: $FORM_CARD_BG;
+    color: $FORM_TEXT;
+    border-color: $FORM_BORDER;
+    border-bottom: 1px solid $FORM_CARD_BG;
+    font-weight: 600;
+}

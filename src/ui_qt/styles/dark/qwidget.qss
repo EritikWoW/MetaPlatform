@@ -1,0 +1,6 @@
+QWidget {
+    background: $BG;
+    color: $FG;
+    font-family: "Roboto", "Segoe UI";
+    font-size: 10pt;
+}

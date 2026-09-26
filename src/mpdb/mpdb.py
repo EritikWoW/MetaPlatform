@@ -20,6 +20,7 @@ import zlib
 import threading
 import bisect
 from collections import OrderedDict
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Iterator, Tuple, List, Protocol, Union
@@ -554,7 +555,10 @@ class AdaptiveCompressor:
 
     def decompress(self, data: bytes, orig_size: int) -> bytes:
         if self.algo == "zstd" and _HAS_ZSTD:
-            return self._dctx.decompress(data, max_output_size=orig_size)
+            # ZstdDecompressor is not safe to share between concurrent
+            # Runtime readers.  A fresh context is cheap compared with page
+            # I/O and prevents sporadic false corruption under indexing load.
+            return zstd.ZstdDecompressor().decompress(data, max_output_size=orig_size)
         if self.algo == "lzma":
             out = lzma.decompress(data)
             if len(out) > orig_size:
@@ -2643,13 +2647,20 @@ class Transaction:
         self._page_map: Dict[int, Tuple[int, bytes]] = {}  # pid -> (page_type, payload)
         self._meta_bytes: Optional[bytes] = None
         self._meta_before: Optional[bytes] = None
+        self._owns_db_lock = False
 
     def __enter__(self) -> "Transaction":
-        with self.db._lock:
+        self.db._lock.acquire()
+        self._owns_db_lock = True
+        try:
             self._active = True
             self._meta_before = self.db._encode_meta(self.db._meta)
             self.db._wal_append(WAL_BEGIN, self.txid, b"")
-        return self
+            return self
+        except Exception:
+            self._active = False
+            self._release_db_lock()
+            raise
 
     def __exit__(self, exc_type, exc, tb) -> None:
         if exc_type is None:
@@ -2682,10 +2693,51 @@ class Transaction:
             raise MpdbError("Transaction not active")
         self._meta_bytes = self.db._encode_meta(meta)
 
+    def _release_db_lock(self) -> None:
+        if self._owns_db_lock:
+            self._owns_db_lock = False
+            self.db._lock.release()
+
     def commit(self) -> None:
+        try:
+            self._commit_locked()
+        except Exception:
+            if self._active and self._meta_before is not None:
+                self.db._meta = self.db._decode_meta(self._meta_before)
+                self._active = False
+            raise
+        finally:
+            self._release_db_lock()
+
+    def _commit_locked(self) -> None:
         with self.db._lock:
             if not self._active:
                 return
+
+            before_meta = self.db._decode_meta(self._meta_before) if self._meta_before else {}
+            first_new_page = int(before_meta.get(META_NEXT_PAGE_ID, 1) or 1)
+            next_page = int(self.db._meta.get(META_NEXT_PAGE_ID, first_new_page) or first_new_page)
+            missing_pages = [pid for pid in range(first_new_page, next_page) if pid not in self._page_map]
+            invalid_pages: List[int] = []
+            f = self.db._require_file()
+            for pid in missing_pages:
+                try:
+                    f.seek(self.db._page_offset(pid))
+                    slot = f.read(self.db.page_size)
+                    disk_pid, _ptype, _ctype, _payload, _lsn = unpack_page_slot(
+                        self.db.page_size,
+                        slot,
+                        self.db._compressor,
+                    )
+                    if int(disk_pid) != int(pid):
+                        invalid_pages.append(pid)
+                except Exception:
+                    invalid_pages.append(pid)
+            if invalid_pages:
+                raise MpdbError(
+                    "Transaction allocated pages without writing them: "
+                    + ", ".join(map(str, invalid_pages[:16]))
+                )
 
             # write WAL records — one entry per unique page (latest version only)
             for pid in self._pages:
@@ -2724,6 +2776,12 @@ class Transaction:
             self.db._maybe_autocheckpoint_after_commit(durable=False)
 
     def abort(self) -> None:
+        try:
+            self._abort_locked()
+        finally:
+            self._release_db_lock()
+
+    def _abort_locked(self) -> None:
         with self.db._lock:
             if not self._active:
                 return
@@ -2892,7 +2950,25 @@ class Table:
 
         return rowid
 
-    def select(self, where: Optional[Dict[str, Any]] = None, *, order_by: Optional[str] = None) -> List[Dict[str, Any]]:
+    def select(
+        self,
+        where: Optional[Dict[str, Any]] = None,
+        *,
+        order_by: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        # ``limit`` is primarily used by Runtime RPC list views. Keep it in
+        # the storage API so local and remote Table implementations behave
+        # identically; the scan still preserves the existing ordering rules.
+        page_limit = None if limit is None else max(1, int(limit))
+        page_offset = max(0, int(offset))
+
+        def page(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            if page_limit is None:
+                return rows
+            return rows[page_offset:page_offset + page_limit]
+
         # Allow point reads by primary rowid even though rowid is not part of the stored row dict.
         if where and "rowid" in where:
             try:
@@ -2910,7 +2986,7 @@ class Table:
             where_local.pop("rowid", None)
             if where_local and not _match(row, where_local):
                 return []
-            return [row]
+            return page([row])
         with self.db._lock:
             tables = self.db._meta[META_TABLES]
             tinfo = tables[self.name]
@@ -2941,6 +3017,7 @@ class Table:
         # when an old bulk import left a stale page id in ``data_pages``.
         if candidate_rowids and ordered_rowids is None:
             indexed_out: List[Dict[str, Any]] = []
+            target_count = (page_offset + page_limit) if page_limit is not None else None
             for rid in sorted(candidate_rowids):
                 try:
                     row = self._fetch_row_by_rowid(int(rid))
@@ -2951,8 +3028,10 @@ class Table:
                 if where and not _match(row, where):
                     continue
                 indexed_out.append(row)
+                if target_count is not None and len(indexed_out) >= target_count:
+                    break
             if indexed_out:
-                return indexed_out
+                return page(indexed_out)
 
         # If we have an ordered list from index, we collect matching rows into a map
         # and then emit them in index order. Rows without the indexed field will be
@@ -3007,10 +3086,11 @@ class Table:
                         if _match(restored, where):
                             out.append(restored)
                 out.sort(key=lambda x: (x.get(order_by) is None, x.get(order_by)))
-            return out
+            return page(out)
 
         # Fallback: full scan + Python sort.
         out: List[Dict[str, Any]] = []
+        target_count = (page_offset + page_limit) if page_limit is not None and not order_by else None
         for pid in pages:
             payload = self.db._read_page(pid)
             for rowid, data in _iter_records(payload):
@@ -3020,6 +3100,8 @@ class Table:
                 if where and not _match(restored, where):
                     continue
                 out.append(restored)
+                if target_count is not None and len(out) >= target_count:
+                    return page(out)
 
         if not out and used_secondary_index and where:
             for pid in pages:
@@ -3032,6 +3114,40 @@ class Table:
         if order_by:
             # Robust ordering: missing values go last.
             out.sort(key=lambda x: (x.get(order_by) is None, x.get(order_by)))
+        return page(out)
+
+    def select_rowid_range(
+        self,
+        first_rowid: int,
+        last_rowid: int,
+        *,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Read rows in a primary-rowid interval without a secondary index.
+
+        Bulk imports intentionally skip index maintenance.  Virtual imported
+        data still has stable append-order rowids, so a bounded page scan is
+        considerably cheaper than issuing one unindexed point read per row.
+        """
+        first = max(1, int(first_rowid))
+        last = max(first, int(last_rowid))
+        max_rows = None if limit is None else max(0, int(limit))
+        with self.db._lock:
+            tinfo = self.db._meta[META_TABLES][self.name]
+            pages = list(tinfo.get("data_pages", []))
+
+        out: List[Dict[str, Any]] = []
+        for pid in pages:
+            payload = self.db._read_page(pid)
+            for rowid, data in _iter_records(payload):
+                rid = int(rowid)
+                if rid < first:
+                    continue
+                if rid > last:
+                    continue
+                out.append(self.db._restore_strings(data))
+                if max_rows is not None and len(out) >= max_rows:
+                    return out
         return out
 
     def delete(self, where: Dict[str, Any]) -> int:
@@ -3229,7 +3345,29 @@ class Table:
             tx.set_meta(self.db._meta)
         return int(deleted)
 
+    def update_tx(self, tx: "Transaction", where: Dict[str, Any], set_values: Dict[str, Any]) -> int:
+        """Update committed rows in an outer transaction, keeping their rowids.
+
+        This variant must precede other writes to this same table. Reads use
+        committed locators; rejecting pending table pages prevents stale reads.
+        Writes to other tables may precede or follow this update.
+        """
+        if tx.db is not self.db or not tx._active:
+            raise MpdbError("Active transaction from this database required")
+        info = self.db._meta[META_TABLES][self.name]
+        pages = set(info.get("data_pages", []))
+        pages.add(info.get("rowid_index_root"))
+        for index in self.db._meta.get(META_INDEXES, {}).get(self.name, {}).values():
+            if isinstance(index, dict):
+                pages.add(index.get("root"))
+        if pages.intersection(tx._page_map):
+            raise MpdbError("update_tx must precede other writes to the same table")
+        return self._update(where, set_values, tx=tx)
+
     def update(self, where: Dict[str, Any], set_values: Dict[str, Any]) -> int:
+        return self._update(where, set_values)
+
+    def _update(self, where: Dict[str, Any], set_values: Dict[str, Any], *, tx=None) -> int:
         """Update rows matching `where` with `set_values`.
 
         MVP semantics:
@@ -3254,7 +3392,7 @@ class Table:
             except Exception:
                 raise MpdbError("rowid must be an int")
 
-        with self.db.transaction() as tx:
+        with (self.db.transaction() if tx is None else nullcontext(tx)) as tx:
             tables = self.db._meta[META_TABLES]
             tinfo = tables[self.name]
             pages: List[int] = list(tinfo.get("data_pages", []))

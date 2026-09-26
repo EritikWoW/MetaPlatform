@@ -1,0 +1,15 @@
+QFrame#FormWindowClient QPushButton {
+    background: $FORM_PRIMARY;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 10px;
+    padding: 6px 12px;
+}
+
+QFrame#FormWindowClient QPushButton:hover {
+    background: $FORM_PRIMARY_HOVER;
+}
+
+QFrame#FormWindowClient QPushButton:pressed {
+    background: $FORM_PRIMARY_ACTIVE;
+}

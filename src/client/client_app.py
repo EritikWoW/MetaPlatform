@@ -99,15 +99,11 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     w = ClientWindow(runtime=runtime, db_path=None)
-    try:
-        startup_ok = True
-        if hasattr(w, "_run_startup_modules"):
-            startup_ok = bool(w._run_startup_modules(phase="pre"))  # type: ignore[misc]
-        if not startup_ok:
-            return 0
-    except Exception:
-        pass
     w.show()
+    # Never hold the first paint hostage to user startup modules.  The window
+    # is visible immediately; the bootstrap poller preserves pre -> post order.
+    if hasattr(w, "_start_pre_startup_async"):
+        w._start_pre_startup_async()  # type: ignore[misc]
 
     return app.exec()
 
@@ -147,15 +143,9 @@ def run(runtime_url: str = "", db_uid: str = "") -> int:
     )
 
     w = ClientWindow(runtime=runtime, db_path=None)
-    try:
-        startup_ok = True
-        if hasattr(w, "_run_startup_modules"):
-            startup_ok = bool(w._run_startup_modules(phase="pre"))  # type: ignore[misc]
-        if not startup_ok:
-            return 0
-    except Exception:
-        pass
     w.show()
+    if hasattr(w, "_start_pre_startup_async"):
+        w._start_pre_startup_async()  # type: ignore[misc]
 
     if had_app:
         loop = QEventLoop()

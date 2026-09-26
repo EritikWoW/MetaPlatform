@@ -1,0 +1,18 @@
+QCheckBox {
+    spacing: 8px;
+    background: transparent;
+    color: $FORM_TEXT;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid $FORM_BORDER_STRONG;
+    border-radius: 4px;
+    background: $FORM_CARD_BG;
+}
+
+QCheckBox::indicator:checked {
+    background: $FORM_PRIMARY;
+    border-color: $FORM_PRIMARY;
+}

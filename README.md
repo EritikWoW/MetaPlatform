@@ -10,9 +10,9 @@ MetaPlatform об'єднує власне файлове сховище `mpdb`, 
 > [!WARNING]
 > Проєкт перебуває на стадії активної розробки (`experimental / pre-release`). Це не готова заміна 1C/BAS і не production-ready платформа. Формат зберігання, API, DSL, сумісність та UX ще можуть змінюватися.
 
-## OpenAI Build Week 2026
+## Проєктний контекст
 
-MetaPlatform існувала до початку OpenAI Build Week, однак під час хакатону проєкт був суттєво розширений за допомогою OpenAI Codex і GPT-5.6.
+MetaPlatform розвивається як самостійний експериментальний проєкт. Частина робіт виконувалася за допомогою OpenAI Codex, але джерелом істини залишаються код, тести та рішення автора проєкту.
 
 Основними напрямами роботи під час Build Week стали:
 
@@ -61,14 +61,13 @@ Codex з GPT-5.6 використовувався для:
 
 Усі продуктові рішення, архітектурні зміни, приймання реалізації та фінальна перевірка виконувалися автором проєкту.
 
-### Build evidence
+### Документація та аудит
 
-- Author: **Roman Tishkov**
-- Hackathon commit range: `[FIRST BUILD WEEK COMMIT]` → `[FINAL SUBMISSION COMMIT]`
-- Codex feedback session ID: `[CODEX SESSION ID]`
-- Demo video: `[YOUTUBE VIDEO URL]`
-- Implementation log: [`src/docs/O_PRODELANNOI_RABOTE.md`](src/docs/O_PRODELANNOI_RABOTE.md)
-- Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
+- Автор: **Roman Tishkov**
+- Журнал реалізації: [`src/docs/O_PRODELANNOI_RABOTE.md`](src/docs/O_PRODELANNOI_RABOTE.md)
+- Архітектура: [`ARCHITECTURE.md`](ARCHITECTURE.md)
+- Поточний аудит і roadmap: [`docs/PROJECT_AUDIT_2026-09.md`](docs/PROJECT_AUDIT_2026-09.md)
+- План робіт ведеться у GitHub Issues за етапами.
 
 ## Навіщо MetaPlatform
 
@@ -111,6 +110,7 @@ MetaPlatform досліджує інший підхід: прикладне рі
 - редактор модулів із підсвічуванням синтаксису;
 - локальний і Runtime-backed completion;
 - діагностика та навігація по вихідному коду;
+- нижня панель `Problems` для workspace diagnostics із фільтрами та переходом до модуля/рядка;
 - completion експортних процедур і функцій після імені загального модуля;
 - `F12` і `Ctrl+Click` для переходу до визначення;
 - `Shift+F12` для семантичного пошуку використань;
@@ -124,6 +124,12 @@ MetaPlatform досліджує інший підхід: прикладне рі
 - стартові, загальні, об'єктні та формові модулі;
 - фоновий Configurator Control API для автоматизованої перевірки.
 
+Відступи виділення або модуля: `Ctrl+Alt+L`. Completion: `Ctrl+Space`, стрілки,
+`Enter`/`Tab`, `Esc`. [Реалізовані можливості IDE та наступні кроки](src/docs/IDE_STATUS.md).
+Сигнатура виклику та активний параметр: автоматично в аргументах або
+`Ctrl+Shift+Space`; `Esc` приховує підказку. Враховуються незбережені локальні
+процедури, вкладені виклики та точні Runtime-експорти без fuzzy-підміни імен.
+
 ### Runtime
 
 - локальний HTTP/JSON-RPC сервер;
@@ -134,6 +140,8 @@ MetaPlatform досліджує інший підхід: прикладне рі
 - кеш текстів модулів;
 - Runtime-owned Workspace Semantic Index;
 - фоновий прогрів семантичного індексу;
+- стабільні semantic `symbol_id` та diagnostics нерозв'язаних/неоднозначних посилань;
+- workspace rename за точним набором semantic references із повторною token/hash-перевіркою;
 - Runtime-сервіси для форм, звітів, друку та проведення;
 - staged-імпорт за схемою `backup -> staging -> validate -> swap`;
 - CLI та Qt-інструменти адміністрування.
@@ -149,6 +157,15 @@ MetaPlatform досліджує інший підхід: прикладне рі
 - таблиці;
 - команди;
 - стандартні реквізити.
+
+Для packed-імпорту `.1CD` реквізити зв'язуються з фізичними полями через
+UUID/DBNames, а не порядковий номер чи синонім. Новий імпорт зберігає цю карту
+в migration manifest; старий імпорт без карти потребує доступного вихідного
+`.1CD` для її відновлення. Неповний імпорт позначається в списку даних.
+У CLI `onec_data_migrator --limit` обмежує лише preview, `--data-limit` явно
+обмежує імпорт; без `--data-limit` імпортуються всі доступні рядки вибраних таблиць.
+Це не дозавантажує старі sample-бази автоматично. Повторну міграцію виконувати
+на staging-копії з перевіркою перед swap, не в активній БД.
 
 ### Storage і tooling
 

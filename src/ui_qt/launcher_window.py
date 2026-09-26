@@ -484,7 +484,6 @@ class LauncherWindow(QMainWindow):
                 actual_uid = str(data.get("db_uid") or "")
                 if entry.db_uid and actual_uid and entry.db_uid != actual_uid:
                     # UID mismatch — DB was recreated (e.g. after import hard-reset).
-                    from PySide6.QtWidgets import QMessageBox
                     answer = QMessageBox.question(
                         self,
                         t("dlg_db_uid"),

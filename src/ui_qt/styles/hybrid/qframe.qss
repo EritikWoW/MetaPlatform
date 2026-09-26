@@ -1,0 +1,8 @@
+QFrame#FormWindowClient,
+QFrame#FormWindowClient * {
+    color: $text_dark;
+}
+
+QFrame#FormWindowClient {
+    background: $light_panel;
+}

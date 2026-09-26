@@ -1,0 +1,7 @@
+QMdiArea#Workspace {
+    background-color: $light_bg;
+}
+
+QMdiArea#Workspace::viewport {
+    background-color: $light_bg;
+}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="24" height="24" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <rect x="5.5" y="5.5" width="15.8571" height="15.8571" rx="1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="27.5004" y="6.3575" width="14.1421" height="14.1421" rx="1.8" transform="translate(0.6303 28.3788) rotate(-45)" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="5.5" y="26.6429" width="15.8571" height="15.8571" rx="1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="26.6429" y="26.6429" width="15.8571" height="15.8571" rx="1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,14 @@
+QPushButton {
+    background: $PANEL_2;
+    border: 1px solid $BORDER;
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+
+QPushButton:hover {
+    border-color: $ACCENT;
+}
+
+QPushButton:disabled {
+    color: $SUBTLE;
+}

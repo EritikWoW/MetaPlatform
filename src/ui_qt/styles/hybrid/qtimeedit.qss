@@ -1,0 +1,7 @@
+QFrame#FormWindowClient QTimeEdit {
+    background: $light_panel;
+    border: 1px solid $border_soft;
+    border-radius: 10px;
+    padding: 6px 10px;
+    selection-background-color: rgba(37, 99, 235, 40);
+}

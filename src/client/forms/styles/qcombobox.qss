@@ -1,0 +1,45 @@
+QComboBox[mp_form_editor="true"] {
+    background: $FORM_CARD_BG;
+    color: $FORM_TEXT;
+    border: 1px solid $FORM_BORDER_STRONG;
+    border-radius: 10px;
+    padding: 7px 12px;
+    padding-right: 28px;
+    min-height: 16px;
+    selection-background-color: $FORM_PRIMARY_SOFT;
+    selection-color: $FORM_TEXT;
+}
+
+QComboBox[mp_form_editor="true"]:focus {
+    border: 1px solid $FORM_PRIMARY;
+}
+
+QComboBox[mp_form_editor="true"]:hover {
+    border-color: #94A3B8;
+}
+
+QComboBox[mp_form_editor="true"]::drop-down {
+    border: none;
+    width: 24px;
+    background: transparent;
+}
+
+QComboBox[mp_form_editor="true"] QAbstractItemView {
+    background: $FORM_CARD_BG;
+    color: $FORM_TEXT;
+    border: 1px solid $FORM_BORDER;
+    selection-background-color: $FORM_PRIMARY_SOFT;
+    selection-color: $FORM_TEXT;
+    outline: 0;
+}
+
+QComboBox[mp_form_editor="true"][mp_inline_actions="true"] {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}
+
+QComboBox[mp_form_editor="true"][mp_inline_actions="true"]:focus,
+QComboBox[mp_form_editor="true"][mp_inline_actions="true"]:hover {
+    border: none;
+}

@@ -1,0 +1,51 @@
+QDateEdit[mp_form_editor="true"] {
+    background: $FORM_CARD_BG;
+    color: $FORM_TEXT;
+    border: 1px solid $FORM_BORDER_STRONG;
+    border-radius: 10px;
+    padding: 7px 12px;
+    min-height: 16px;
+    selection-background-color: $FORM_PRIMARY_SOFT;
+    selection-color: $FORM_TEXT;
+}
+
+QDateEdit[mp_form_editor="true"]:focus {
+    border: 1px solid $FORM_PRIMARY;
+}
+
+QDateEdit[mp_form_editor="true"]:hover {
+    border-color: #94A3B8;
+}
+
+QDateEdit[mp_form_editor="true"]::drop-down {
+    subcontrol-origin: border;
+    subcontrol-position: center right;
+    width: 32px;
+    height: 100%;
+    border-left: 1px solid $FORM_BORDER_STRONG;
+    border-top-right-radius: 9px;
+    border-bottom-right-radius: 9px;
+    background: transparent;
+}
+
+QDateEdit[mp_form_editor="true"]::down-arrow {
+    image: url($calendar_icon);
+    width: 14px;
+    height: 14px;
+}
+
+QDateEdit[mp_form_editor="true"][mp_inline_actions="true"] {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}
+
+QDateEdit[mp_form_editor="true"][mp_inline_actions="true"]:focus,
+QDateEdit[mp_form_editor="true"][mp_inline_actions="true"]:hover {
+    border: none;
+}
+
+QDateEdit[mp_form_editor="true"][mp_inline_actions="true"]::drop-down {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}

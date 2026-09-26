@@ -1,0 +1,7 @@
+QFrame#FormWindowClient QHeaderView::section {
+    background: #F2F5FA;
+    color: $text_dark;
+    padding: 6px 8px;
+    border: none;
+    border-bottom: 1px solid rgba(0,0,0,14);
+}

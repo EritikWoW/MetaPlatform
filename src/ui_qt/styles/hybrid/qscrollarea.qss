@@ -1,0 +1,12 @@
+QMdiArea#Workspace QScrollArea {
+    background: transparent;
+}
+
+QScrollArea#CanvasScroll {
+    background-color: $light_bg;
+    border: none;
+}
+
+QScrollArea#CanvasScroll > QWidget > QWidget {
+    background-color: $light_bg;
+}

@@ -1,0 +1,32 @@
+QMenu {
+    background-color: #121826;
+    color: #E6EAF2;
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 6px;
+    border-radius: 12px;
+}
+
+QMenu::item {
+    padding: 6px 48px 6px 28px;
+    margin: 1px 2px;
+    border-radius: 6px;
+}
+
+QMenu::item:selected {
+    background-color: rgba(255,255,255,0.10);
+}
+
+QMenu::separator {
+    height: 1px;
+    margin: 6px 8px;
+    background: rgba(255,255,255,0.10);
+}
+
+QMenu::shortcut {
+    color: rgba(230,234,242,0.75);
+    padding-right: 6px;
+}
+
+QMenu::icon {
+    left: 8px;
+}

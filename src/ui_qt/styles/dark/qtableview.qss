@@ -1,0 +1,8 @@
+QTableView {
+    background: $PANEL;
+    border: 1px solid $BORDER;
+    border-radius: 16px;
+    gridline-color: $BORDER;
+    selection-background-color: $ACCENT;
+    selection-color: #FFFFFF;
+}

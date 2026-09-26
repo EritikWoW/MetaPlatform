@@ -1,0 +1,6 @@
+QHeaderView::section {
+    background: $PANEL_2;
+    border: none;
+    padding: 8px;
+    font-weight: 600;
+}

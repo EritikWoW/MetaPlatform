@@ -1,0 +1,36 @@
+QToolButton[mp_form_field_action="true"] {
+    background: $FORM_CARD_BG;
+    color: $FORM_MUTED;
+    border: 1px solid $FORM_BORDER_STRONG;
+    border-radius: 10px;
+    min-width: 34px;
+    max-width: 34px;
+    min-height: 38px;
+    padding: 0;
+}
+
+QToolButton[mp_form_field_action="true"]:hover {
+    background: $FORM_ACCENT_BG;
+    color: $FORM_PRIMARY;
+    border-color: #BFDBFE;
+}
+
+QToolButton[mp_form_field_action="true"]:pressed {
+    background: $FORM_PRIMARY_SOFT;
+}
+
+QWidget[mp_form_inline_actions="true"] QToolButton[mp_form_field_action="true"] {
+    background: transparent;
+    border: none;
+    border-left: 1px solid $FORM_BORDER_STRONG;
+    border-radius: 0;
+    min-width: 29px;
+    max-width: 29px;
+    min-height: 0;
+    padding: 0;
+}
+
+QWidget[mp_form_inline_actions="true"] QToolButton[mp_form_field_action="true"][mp_action_last="true"] {
+    border-top-right-radius: 9px;
+    border-bottom-right-radius: 9px;
+}

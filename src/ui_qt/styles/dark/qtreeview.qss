@@ -1,0 +1,13 @@
+QTreeView::item {
+    padding: 4px 6px;
+    min-height: 24px;
+}
+
+QTreeView::item:selected {
+    background: $ACCENT;
+    color: #FFFFFF;
+}
+
+QTreeView::item:focus {
+    outline: none;
+}

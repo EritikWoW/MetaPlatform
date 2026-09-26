@@ -1,0 +1,17 @@
+QLabel {
+    background: transparent;
+    color: $FORM_TEXT;
+}
+
+QLabel[mp_form_field_title="true"] {
+    color: $FORM_MUTED;
+    font-weight: 500;
+}
+
+QLabel[mp_form_field_title="true"][mp_title_emphasis="strong"] {
+    color: $FORM_TEXT;
+}
+
+QLabel[mp_form_caption_label="true"] {
+    color: $FORM_TEXT;
+}

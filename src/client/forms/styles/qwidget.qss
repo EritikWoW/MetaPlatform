@@ -1,0 +1,30 @@
+QWidget {
+    color: $FORM_TEXT;
+}
+
+QWidget[mp_form_surface_root="true"] {
+    background: $FORM_SURFACE_BG;
+    border: 1px solid $FORM_BORDER;
+    border-radius: 14px;
+}
+
+QWidget[mp_form_editor_host="true"] {
+    background: transparent;
+    border: none;
+}
+
+QWidget[mp_form_editor_host="true"][mp_form_inline_actions="true"] {
+    background: $FORM_CARD_BG;
+    border: 1px solid $FORM_BORDER_STRONG;
+    border-radius: 10px;
+}
+
+QWidget[mp_form_editor_host="true"][mp_form_inline_actions="true"]:hover {
+    border-color: #94A3B8;
+}
+
+QWidget[mp_form_editor_host="true"][mp_form_inline_actions="true"] QDoubleSpinBox[mp_inline_actions="true"] {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}
