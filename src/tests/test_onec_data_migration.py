@@ -598,3 +598,65 @@ def test_migrate_onecd_data_manifest_asset_write_is_non_fatal(monkeypatch, tmp_p
 def test_sanitize_table_name_is_stable_and_ascii():
     assert data_migration.sanitize_table_name("_ACCUMRG11588") == "onec__accumrg11588"
     assert data_migration.sanitize_column_name("_IDRRef", set()) == "idrref"
+
+
+def test_repeat_packed_migration_replaces_rows_and_resets_locator(monkeypatch, tmp_path):
+    onecd_path = tmp_path / "1Cv8.1CD"
+    onecd_path.write_bytes(b"fake")
+    db = Mpdb(str(tmp_path / "repeat.mpdb"))
+    backend = data_migration.Parse1CDBackend(
+        parser_root=tmp_path,
+        database_parser=SimpleNamespace(OneCDatabase=_FakeOneCDatabase),
+        schema_reader=SimpleNamespace(SchemaReader=_FakeSchemaReader),
+        reference_resolver=SimpleNamespace(ReferenceResolver=_FakeReferenceResolver),
+        value_decoder=SimpleNamespace(to_json_safe=lambda value: value),
+    )
+    monkeypatch.setattr(data_migration, "_load_parse1cd_backend", lambda: backend)
+    try:
+        first = data_migration.migrate_onecd_data_to_mpdb(db, str(onecd_path))
+        second = data_migration.migrate_onecd_data_to_mpdb(db, str(onecd_path))
+
+        rows = db.table("onec__data_rows").select()
+        assert len(rows) == 1
+        assert rows[0]["rowid"] == 1
+        assert rows[0]["data"]["description"] == "Goods"
+        assert first["summary"]["rows_imported"] == 1
+        assert second["summary"]["rows_imported"] == 1
+        assert second["summary"]["reset_tables"] == 1
+        assert second["complete"] is True
+        assert db._meta["tables"]["onec__data_rows"]["next_rowid"] == 2
+    finally:
+        db.close()
+
+
+def test_migration_reports_explicit_sampling_and_completeness(monkeypatch, tmp_path):
+    onecd_path = tmp_path / "1Cv8.1CD"
+    onecd_path.write_bytes(b"fake")
+    db = Mpdb(str(tmp_path / "sample.mpdb"))
+    backend = data_migration.Parse1CDBackend(
+        parser_root=tmp_path,
+        database_parser=SimpleNamespace(OneCDatabase=_FakeHeartbeatOneCDatabase),
+        schema_reader=SimpleNamespace(SchemaReader=_FakeSchemaReader),
+        reference_resolver=SimpleNamespace(ReferenceResolver=_FakeReferenceResolver),
+        value_decoder=SimpleNamespace(to_json_safe=lambda value: value),
+    )
+    monkeypatch.setattr(data_migration, "_load_parse1cd_backend", lambda: backend)
+    try:
+        sampled = data_migration.migrate_onecd_data_to_mpdb(
+            db, str(onecd_path), limit_per_table=20
+        )
+        assert sampled["sampled"] is True
+        assert sampled["complete"] is False
+        assert sampled["summary"]["tables_limited"] == 1
+        assert sampled["summary"]["source_rows"] == 300
+        assert sampled["summary"]["active_rows_scanned"] == 20
+
+        full = data_migration.migrate_onecd_data_to_mpdb(db, str(onecd_path))
+        assert full["sampled"] is False
+        assert full["complete"] is True
+        assert full["summary"]["tables_limited"] == 0
+        assert full["summary"]["source_rows"] == 300
+        assert full["summary"]["active_rows_scanned"] == 300
+        assert len(db.table("onec__data_rows").select()) == 300
+    finally:
+        db.close()

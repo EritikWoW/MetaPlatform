@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import threading
+import time
 import urllib.request
 import urllib.error
+import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
+
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -14,6 +20,7 @@ class RpcResult:
     status: str
     data: Any = None
     error: str | None = None
+    request_id: str = ""
 
 
 class RuntimeGateway:
@@ -34,32 +41,53 @@ class RuntimeGateway:
             return False
 
     def _post(self, action: str, payload: Dict[str, Any], *, timeout: float = 30) -> RpcResult:
+        request_id = uuid.uuid4().hex
         body = json.dumps(
-            {"id": None, "action": action, "payload": payload},
+            {"id": request_id, "action": action, "payload": payload},
             ensure_ascii=False,
         ).encode("utf-8")
         req = urllib.request.Request(
             self.base_url + "/rpc", data=body,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "X-Request-ID": request_id,
+            },
         )
+        started = time.perf_counter()
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 res = json.loads(r.read().decode("utf-8"))
-                return RpcResult(
+                result = RpcResult(
                     status=res.get("status") or "error",
                     data=res.get("data"),
                     error=res.get("error"),
+                    request_id=str(res.get("id") or request_id),
                 )
         except urllib.error.HTTPError as e:
-            return RpcResult(status="error", error=f"HTTP {e.code}")
+            result = RpcResult(status="error", error=f"HTTP {e.code}", request_id=request_id)
         except Exception as e:
-            return RpcResult(status="error", error=f"{type(e).__name__}: {e}")
+            result = RpcResult(
+                status="error",
+                error=f"{type(e).__name__}: {e}",
+                request_id=request_id,
+            )
+        duration_ms = (time.perf_counter() - started) * 1000.0
+        if duration_ms >= 1000.0:
+            _log.warning(
+                "runtime rpc slow request_id=%s action=%s duration_ms=%.1f timeout=%.1f",
+                request_id,
+                action,
+                duration_ms,
+                float(timeout),
+            )
+        return result
 
     def _call(self, action: str, payload: Dict[str, Any], *, timeout: float = 30) -> Any:
         """Call RPC and return data, or raise RuntimeError on failure."""
         res = self._post(action, payload, timeout=timeout)
         if res.status != "ok":
-            raise RuntimeError(res.error or f"RPC {action} failed")
+            detail = res.error or f"RPC {action} failed"
+            raise RuntimeError(f"{detail} [request_id={res.request_id}]")
         return res.data or {}
 
     # ── session / db ─────────────────────────────────────────────────────
