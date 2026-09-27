@@ -185,7 +185,9 @@ class ConfiguratorStateMixin:
             except Exception:
                 event.ignore()
                 return
-        if self._is_dirty:
+        if self._is_dirty and not bool(
+            getattr(self, "_control_discard_unsaved_changes", False)
+        ):
             res = QMessageBox.question(
                 self,
                 t("dlg_unsaved_title"),

@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-import pytest
-
 from src.infra.onec.physical_schema import _load_parse1cd_backend
 
 
 def _backend():
-    try:
-        _parser_root, backend = _load_parse1cd_backend()
-    except FileNotFoundError as exc:
-        pytest.skip(f"optional Parse1CD backend is not installed: {exc}")
+    _parser_root, backend = _load_parse1cd_backend()
     return backend
 
 
@@ -99,6 +94,20 @@ def test_parse1cd_numeric_field_size_matches_tool1cd_formula() -> None:
 
     assert db._base_fsize(backend.FieldType.NUMBER, 5) == 3
     assert db._base_fsize(backend.FieldType.NUMBER, 10) == 6
+
+
+def test_parse1cd_variable_binary_uses_declared_inline_width_and_stays_raw() -> None:
+    backend = _backend()
+    db = backend.OneCDatabase("dummy")
+    fields = db._parse_fields('{"STORAGEID","VB",0,16,0,"CS"}')
+    table = backend.Table(name="BINARY_DATA", fields=fields, recordlock="0")
+
+    db._apply_physical_layout(table)
+
+    assert fields[0].type == backend.FieldType.VARIABLE_BINARY
+    assert fields[0].offset == 1
+    assert table.row_size == 17
+    assert db._decode_field(fields[0], bytes(range(16)), None, False) == bytes(range(16))
 
 
 def test_parse1cd_indexes_include_field_list() -> None:

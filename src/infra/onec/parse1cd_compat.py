@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import contextlib
 import io
+import logging
 from typing import Any
 
 
@@ -93,7 +94,7 @@ def _recover_missing_83_table_files(db: Any) -> int:
 
 
 def _recover_missing_83_table_files_from_alternate_parser(db: Any, missing: dict[str, Any]) -> int:
-    """Use the newer Parse1CD reader as a descriptor-only fallback when present."""
+    """Let legacy readers recover descriptors through the bundled core."""
     source_path = str(getattr(db, "filepath", "") or "").strip()
     if not source_path:
         return 0
@@ -102,6 +103,8 @@ def _recover_missing_83_table_files_from_alternate_parser(db: Any, missing: dict
 
         backend = _load_parse1cd_backend()
         alt_cls = backend.database_parser.OneCDatabase
+        if isinstance(db, alt_cls):
+            return 0
     except Exception:
         return 0
 
@@ -182,7 +185,9 @@ def patch_parse1cd_database_parser(database_parser: Any) -> None:
                     pass
 
         linked = sum(1 for value in (getattr(self, "_table_data_pages", {}) or {}).values() if value)
-        print(f"  Привязано: {linked}/{len(getattr(self, 'tables', {}) or {})}")
+        logging.getLogger(__name__).debug(
+            "Linked %s/%s legacy 1CD tables", linked, len(getattr(self, "tables", {}) or {})
+        )
 
     cls._link_data_83 = _link_data_83
     cls._metaplatform_83_link_patch = True

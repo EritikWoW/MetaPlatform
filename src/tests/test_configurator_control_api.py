@@ -1373,3 +1373,19 @@ def test_control_api_rejected_close_does_not_quit_application(monkeypatch) -> No
 
     assert result == {"accepted": False}
     assert scheduled == []
+
+
+def test_control_api_close_discards_unsaved_window_state_only_when_explicit(monkeypatch) -> None:
+    view = _ViewStub()
+    bridge = ConfiguratorControlBridge(view, _VmStub())
+    observed: list[bool] = []
+    view.close = lambda: observed.append(
+        bool(getattr(view, "_control_discard_unsaved_changes", False))
+    ) or True  # type: ignore[attr-defined]
+    monkeypatch.setattr(control_api_module.QApplication, "instance", lambda: None)
+
+    result = bridge._dispatch("close", {"discard_unsaved_changes": True})
+
+    assert result == {"accepted": True}
+    assert observed == [True]
+    assert not hasattr(view, "_control_discard_unsaved_changes")

@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 import os
 import re
-import sys
 import time
 from contextlib import nullcontext as _nullcontext
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from src.mpdb.mpdb import ASSETS_TABLE, META_ASSETS, Mpdb
 from src.mpdb.table_storage import reset_table_storage
+
+from .backend import Parse1CDBackend, load_backend
 
 
 ONECD_DATA_MIGRATION_ASSET_KEY = "onec_data_migration/manifest.json"
@@ -22,88 +21,8 @@ ONECD_PACKED_ROW_ASSET_PREFIX = "onec_data_rows/"
 ONECD_PACKED_INLINE_LIMIT = 1024
 
 
-@dataclass(frozen=True)
-class Parse1CDBackend:
-    parser_root: Path
-    database_parser: Any
-    schema_reader: Any
-    reference_resolver: Any
-    value_decoder: Any
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
-
-
-def _candidate_parser_roots() -> list[Path]:
-    candidates: list[Path] = []
-    env_value = str(os.environ.get("META_PARSE1CD_PARSER") or "").strip()
-    if env_value:
-        candidates.append(Path(env_value))
-    candidates.append(Path("F:/Parse1CD/parser"))
-    candidates.append(_repo_root() / "WorkedData" / "Parse1CD" / "parser")
-
-    roots: list[Path] = []
-    seen: set[str] = set()
-    for candidate in candidates:
-        if (candidate / "database_parser.py").exists():
-            root = candidate
-        elif (candidate / "parser" / "database_parser.py").exists():
-            root = candidate / "parser"
-        else:
-            continue
-        key = str(root.resolve()).lower()
-        if key not in seen:
-            roots.append(root)
-            seen.add(key)
-    return roots
-
-
-def _load_module_from_path(module_name: str, path: Path) -> Any:
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot create import spec for {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
 def _load_parse1cd_backend() -> Parse1CDBackend:
-    roots = _candidate_parser_roots()
-    if not roots:
-        raise FileNotFoundError("Parse1CD parser was not found. Set META_PARSE1CD_PARSER or place it at F:/Parse1CD/parser.")
-
-    last_error: Exception | None = None
-    for parser_root in roots:
-        module_names = ("models", "value_decoder", "reference_resolver", "schema_reader", "database_parser")
-        previous_modules = {name: sys.modules.get(name) for name in module_names}
-        try:
-            _load_module_from_path("models", parser_root / "models.py")
-            value_decoder = _load_module_from_path("value_decoder", parser_root / "value_decoder.py")
-            reference_resolver = _load_module_from_path("reference_resolver", parser_root / "reference_resolver.py")
-            schema_reader = _load_module_from_path("schema_reader", parser_root / "schema_reader.py")
-            database_parser = _load_module_from_path("database_parser", parser_root / "database_parser.py")
-            from src.infra.onec.parse1cd_compat import patch_parse1cd_database_parser
-
-            patch_parse1cd_database_parser(database_parser)
-            return Parse1CDBackend(
-                parser_root=parser_root,
-                database_parser=database_parser,
-                schema_reader=schema_reader,
-                reference_resolver=reference_resolver,
-                value_decoder=value_decoder,
-            )
-        except Exception as exc:
-            last_error = exc
-        finally:
-            for name, module in previous_modules.items():
-                if module is None:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = module
-
-    raise ImportError(f"Parse1CD backend could not be loaded: {last_error}")
+    return load_backend()
 
 
 _IDENT_RE = re.compile(r"[^a-z0-9]+")
@@ -680,7 +599,7 @@ def migrate_onecd_data_to_mpdb(
     """Import physical .1CD table rows into mpdb tables.
 
     This is intentionally separate from the synthetic XMLConf metadata loader:
-    it uses the external Parse1CD reader for business data rows and keeps the
+    it uses the bundled Parse1CD reader for business data rows and keeps the
     source-to-target mapping as a JSON asset in mpdb.
     """
     source = Path(source_path)
@@ -1042,9 +961,8 @@ def migrate_onecd_data_to_mpdb(
                     resolver=resolver,
                 ):
                     # Enforce the sampling contract in our own loop as well.
-                    # External Parse1CD backends are allowed to ignore their
-                    # limit argument; Runtime must still never import more rows
-                    # than the explicit operator limit.
+                    # Keep the Runtime limit authoritative even if a parser
+                    # implementation returns more rows than requested.
                     if (
                         limit_per_table is not None
                         and source_row_index >= max(0, int(limit_per_table))
