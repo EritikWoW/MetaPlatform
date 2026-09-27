@@ -616,10 +616,12 @@ def test_repeat_packed_migration_replaces_rows_and_resets_locator(monkeypatch, t
         first = data_migration.migrate_onecd_data_to_mpdb(db, str(onecd_path))
         second = data_migration.migrate_onecd_data_to_mpdb(db, str(onecd_path))
 
-        rows = db.table("onec__data_rows").select()
+        table = db.table("onec__data_rows")
+        rows = table.select()
         assert len(rows) == 1
-        assert rows[0]["rowid"] == 1
-        assert rows[0]["data"]["description"] == "Goods"
+        point = table.select(where={"rowid": 1}, limit=1)
+        assert len(point) == 1
+        assert point[0]["data"]["description"] == "Goods"
         assert first["summary"]["rows_imported"] == 1
         assert second["summary"]["rows_imported"] == 1
         assert second["summary"]["reset_tables"] == 1
