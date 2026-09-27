@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: ["master", "audit-remediation-*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows / Python 3.13
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      PYTHONUTF8: "1"
+      QT_QPA_PLATFORM: "offscreen"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: "requirements.lock"
+
+      - name: Install fully pinned dependencies
+        shell: pwsh
+        run: |
+          python -m pip install pip==26.2.1
+          python -m pip install --only-binary=:all: -r requirements.lock
+          python -m pip install -e . --no-deps --no-build-isolation
+
+      - name: Reject whitespace errors in branch diff
+        shell: pwsh
+        run: git diff --check origin/master...HEAD
+
+      - name: Compile Python sources
+        run: python -m compileall -q src
+
+      - name: Reject tracked private data and obvious secrets
+        run: python -m src.scripts.ci_private_data_check
+
+      - name: Run test suite
+        run: python -m pytest -q src/tests
+
+      - name: Synthetic 1CD import contract smoke
+        run: python -m src.scripts.import_contract_smoke
+
+      - name: Runtime + Configurator + Client process smoke
+        run: python -m src.scripts.runtime_process_smoke
+
+      - name: Reproducible release bundle smoke
+        run: python -m src.scripts.release_repro_smoke
+
+      - name: Audit Python dependencies
+        run: python -m pip_audit -r requirements.lock --disable-pip --no-deps --progress-spinner off

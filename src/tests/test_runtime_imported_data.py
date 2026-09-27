@@ -207,3 +207,60 @@ def test_null_reference_has_no_openable_record_identity(imported):
     row = imported.build().handle_select("data_document_sales", limit=1)[1][0]
     assert row["Partner"] == ""
     assert "Partner_guid" not in row
+
+
+def test_reference_without_resolved_name_uses_imported_catalog_presentation():
+    document = {"guid": "doc", "name": "Sales", "type": "document", "payload": {
+        "requisites": [{"name": "Partner", "imported": {"src_uuid": "partner"}}],
+    }}
+    catalog = {"guid": "catalog", "name": "Partners", "type": "catalog", "payload": {}}
+    migration = {
+        "storage_mode": "packed",
+        "source_path": "missing.1CD",
+        "storage_bindings": {"partner": {"Fld": 4}},
+        "tables": [
+            {"source_table": "_DOCUMENT7", "metadata_uuid": "doc", "logical_name": "Sales",
+             "kind": "document", "table_role": "object", "imported_rows": 1, "source_rows": 1,
+             "field_map": {"_FLD4RREF": "fld4rref"}},
+            {"source_table": "_REFERENCE10", "metadata_uuid": "catalog", "logical_name": "Partners",
+             "kind": "catalog", "table_role": "object", "imported_rows": 1, "source_rows": 1,
+             "field_map": {"_DESCRIPTION": "description"}},
+        ],
+    }
+    packed = [
+        {"rowid": 1, "__source_table": "_DOCUMENT7", "__source_row_index": 1,
+         "data": {"idrref": {"uuid": "doc-1"}, "fld4rref": {"uuid": "partner-1"}}},
+        {"rowid": 2, "__source_table": "_REFERENCE10", "__source_row_index": 1,
+         "data": {"idrref": {"uuid": "partner-1"}, "description": "Acme Partner"}},
+    ]
+
+    class Table:
+        def __init__(self, name):
+            self.name = name
+
+        def select(self, where=None, limit=None, **_kwargs):
+            rows = [document, catalog] if self.name == "manifest" else packed
+            selected = [r for r in rows if not where or all(r.get(k) == v for k, v in where.items())]
+            return copy.deepcopy(selected[:limit])
+
+        def select_rowid_range(self, first, last, limit=None):
+            selected = [r for r in packed if first <= r["rowid"] <= last]
+            return copy.deepcopy(selected[:limit])
+
+    class DB:
+        _meta = {"tables": {}}
+
+        def get_asset(self, key):
+            if key != "onec_data_migration/manifest.json":
+                raise KeyError(key)
+            return json.dumps(migration).encode(), "application/json"
+
+        def table(self, name):
+            if name not in {"manifest", "onec__data_rows"}:
+                raise KeyError(name)
+            return Table(name)
+
+    row = VirtualOneCDataTables(DB()).handle_select("data_document_sales", limit=1)[1][0]
+
+    assert row["Partner"] == "Acme Partner"
+    assert row["Partner_guid"] == "partner-1"

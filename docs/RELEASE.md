@@ -1,0 +1,49 @@
+# Release and rollback
+
+MetaPlatform uses a reproducible Windows-oriented source/wheel bundle until a standalone installer is introduced.
+
+## Build
+
+Use Python 3.13 from a clean checkout:
+
+~~~powershell
+py -3.13 -m venv .venv
+.venv\Scripts\python.exe -m pip install pip==26.2.1
+.venv\Scripts\python.exe -m pip install -r requirements.lock
+.venv\Scripts\python.exe -m pip install -e . --no-deps --no-build-isolation
+.venv\Scripts\python.exe -m src.scripts.import_contract_smoke
+.venv\Scripts\python.exe -m src.scripts.runtime_process_smoke
+.venv\Scripts\python.exe -m src.scripts.build_release --output dist
+~~~
+
+The wheel and source bundle contain Launcher, Runtime, Configurator, Client, runtime icons/styles/assets, migration code, documentation, the dependency lock and VERSION.json. The build also produces SHA256SUMS.json. Build tooling is pinned and build isolation is disabled so the wheel uses the reviewed environment; SOURCE_DATE_EPOCH and normalized ZIP metadata make repeated builds byte-stable.
+
+## Entry points
+
+- metaplatform-launcher
+- metaplatform-configurator
+- metaplatform-client
+- metaplatform-runtime
+- metaplatform-runtime-admin
+
+## Representative .1CD gate
+
+Direct .1CD parsing uses the read-only backend bundled in `src/infra/onec/parser`; no separate Parse1CD installation is needed. Run the explicit local smoke against a representative database with `python -m src.scripts.check_onecd_backend --source "C:\Data\Base.1CD" --limit 3`. This checks physical and semantic reads, DBNames, a bounded sample in a disposable mpdb, and source hash stability without exposing row values.
+
+Real business databases must not be committed to the repository or uploaded to public CI. Before a release intended for a specific 1C/BAS database, run:
+
+~~~powershell
+python -m src.scripts.real_onecd_gate --source "C:\Data\Base.1CD" --repeat --representative-document "РеализацияТоваровУслуг" --report .artifacts\real-onecd-gate.json
+~~~
+
+The gate rejects sample-limited imports, table errors, missing UUID/DBNames bindings, failed integrity checks and repeat-import row-count drift. With --representative-document it also requires that document and every related physical table to import all active rows; the JSON report records source/active/imported counts and a first-row field inventory.
+
+## Rollback
+
+1. Stop Configurator and Client.
+2. Stop the Runtime process that owns the live mpdb.
+3. Restore the pre-import backup produced by the staged import workflow.
+4. Install the previous wheel or unpack the previous source bundle.
+5. Start Runtime and run the process smoke before reopening production data.
+
+Do not replace a live mpdb while Runtime still owns the file.

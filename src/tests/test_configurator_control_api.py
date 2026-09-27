@@ -1327,3 +1327,65 @@ def test_control_api_releases_active_pause_without_loaded_editor() -> None:
 
     assert result == {"accepted": True, "command": "continue"}
     assert command_state["value"] == "continue"
+
+
+def test_control_api_close_delegates_to_window(monkeypatch) -> None:
+    view = _ViewStub()
+    calls: list[str] = []
+    scheduled: list[tuple[int, object]] = []
+    view.close = lambda: calls.append("close") or True  # type: ignore[attr-defined]
+    bridge = ConfiguratorControlBridge(view, _VmStub())
+
+    class _App:
+        def quit(self) -> None:
+            calls.append("quit")
+
+    monkeypatch.setattr(control_api_module.QApplication, "instance", lambda: _App())
+    monkeypatch.setattr(
+        control_api_module.QTimer,
+        "singleShot",
+        lambda delay, callback: scheduled.append((int(delay), callback)),
+    )
+
+    result = bridge._dispatch("close", {})
+
+    assert result == {"accepted": True}
+    assert calls == ["close"]
+    assert scheduled and scheduled[0][0] >= 100
+
+    scheduled[0][1]()
+    assert calls == ["close", "quit"]
+
+
+def test_control_api_rejected_close_does_not_quit_application(monkeypatch) -> None:
+    view = _ViewStub()
+    scheduled: list[object] = []
+    view.close = lambda: False  # type: ignore[attr-defined]
+    bridge = ConfiguratorControlBridge(view, _VmStub())
+
+    monkeypatch.setattr(
+        control_api_module.QTimer,
+        "singleShot",
+        lambda _delay, callback: scheduled.append(callback),
+    )
+
+    result = bridge._dispatch("close", {})
+
+    assert result == {"accepted": False}
+    assert scheduled == []
+
+
+def test_control_api_close_discards_unsaved_window_state_only_when_explicit(monkeypatch) -> None:
+    view = _ViewStub()
+    bridge = ConfiguratorControlBridge(view, _VmStub())
+    observed: list[bool] = []
+    view.close = lambda: observed.append(
+        bool(getattr(view, "_control_discard_unsaved_changes", False))
+    ) or True  # type: ignore[attr-defined]
+    monkeypatch.setattr(control_api_module.QApplication, "instance", lambda: None)
+
+    result = bridge._dispatch("close", {"discard_unsaved_changes": True})
+
+    assert result == {"accepted": True}
+    assert observed == [True]
+    assert not hasattr(view, "_control_discard_unsaved_changes")

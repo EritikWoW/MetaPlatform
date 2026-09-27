@@ -81,7 +81,10 @@ class ConfiguratorStateMixin:
             if self.isVisible():
                 QTimer.singleShot(0, self._restore_last_windows_optional)
             else:
-                self._restore_last_windows_optional()
+                # Startup calls this before showing the main window. Defer the
+                # saved-editor restore until configurator_app has dismissed the
+                # splash screen; constructors can be expensive on large DBs.
+                self._startup_restore_pending = True
 
     def _restore_ui_state(self) -> None:
         try:
@@ -185,7 +188,9 @@ class ConfiguratorStateMixin:
             except Exception:
                 event.ignore()
                 return
-        if self._is_dirty:
+        if self._is_dirty and not bool(
+            getattr(self, "_control_discard_unsaved_changes", False)
+        ):
             res = QMessageBox.question(
                 self,
                 t("dlg_unsaved_title"),
@@ -255,29 +260,33 @@ class ConfiguratorStateMixin:
             return
 
     def _restore_last_windows_optional(self) -> None:
-        try:
+        queue = getattr(self, "_restore_windows_queue", None)
+        if queue is None:
             keys = self._settings.value("last_open_windows", [])
-            if not keys:
-                return
+            queue = [str(key or "").strip() for key in (keys or [])[:20]]
+            self._restore_windows_queue = [key for key in queue if key]
+            self._restore_windows_pending: list[str] = []
 
-            pending: list[str] = []
-            for k in keys[:20]:
-                guid = str(k or "").strip()
-                if not guid:
-                    continue
-
+        if self._restore_windows_queue:
+            guid = self._restore_windows_queue.pop(0)
+            try:
                 meta = self._vm.get_meta_by_guid(guid) if self._vm else None
                 if not isinstance(meta, dict):
-                    pending.append(guid)
-                    continue
-
-                title = str(meta.get("title") or meta.get("name") or guid)
-                obj_type = str(meta.get("type") or "").strip() or "structure"
-                info = NodeInfo(kind="object", name=title, guid=guid, obj_type=obj_type)
-                self.open_object_tab(info)
-
-            if pending and self._restore_windows_retries_left > 0:
-                self._restore_windows_retries_left -= 1
-                QTimer.singleShot(250, self._restore_last_windows_optional)
-        except Exception:
+                    self._restore_windows_pending.append(guid)
+                else:
+                    title = str(meta.get("title") or meta.get("name") or guid)
+                    obj_type = str(meta.get("type") or "").strip() or "structure"
+                    info = NodeInfo(kind="object", name=title, guid=guid, obj_type=obj_type)
+                    self.open_object_tab(info)
+            except Exception:
+                # One stale or malformed saved editor must not prevent the
+                # remaining workspace from being restored.
+                pass
+            QTimer.singleShot(0, self._restore_last_windows_optional)
             return
+
+        if self._restore_windows_pending and self._restore_windows_retries_left > 0:
+            self._restore_windows_retries_left -= 1
+            self._restore_windows_queue = self._restore_windows_pending
+            self._restore_windows_pending = []
+            QTimer.singleShot(250, self._restore_last_windows_optional)
