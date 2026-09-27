@@ -495,7 +495,7 @@ MetaPlatform/
 
 - Немає стабільного публічного API.
 - Не гарантується backward compatibility.
-- Прямі Python-залежності зафіксовані у requirements.lock; CI додатково виконує vulnerability audit.
+- Повний Python 3.13 dependency set зафіксований у requirements.lock; CI додатково виконує vulnerability audit.
 - Є відтворюваний wheel/source bundle; standalone installer поки відсутній.
 - Немає installer.
 - Імпорт 1C/BAS не означає повної бінарної, мовної або поведінкової сумісності.
