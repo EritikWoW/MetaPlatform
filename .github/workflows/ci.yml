@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -37,6 +39,10 @@ jobs:
           python -m pip install pip==26.2.1
           python -m pip install -r requirements.lock
           python -m pip install -e . --no-deps
+
+      - name: Reject whitespace errors in branch diff
+        shell: pwsh
+        run: git diff --check origin/master...HEAD
 
       - name: Compile Python sources
         run: python -m compileall -q src

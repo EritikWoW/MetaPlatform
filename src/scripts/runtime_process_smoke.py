@@ -18,11 +18,14 @@ from src.mpdb.mpdb import Mpdb
 from src.runtime.gateway import GatewayDb, RuntimeGateway
 
 
+CONFIGURATOR_CYCLES = 3
+LIST_ROWS = 50
 BUDGETS = {
     "startup": 15.0,
     "open_db": 15.0,
     "manifest_point_read": 5.0,
     "point_read": 5.0,
+    "list_load": 5.0,
     "configurator_startup": 20.0,
     "configurator_open": 5.0,
     "object_form": 5.0,
@@ -138,9 +141,18 @@ def _seed_smoke_db(db_path: Path) -> tuple[str, str, dict]:
             },
         )
         record_guid = "smoke-record-1"
-        db.table("data_document_smokedoc").insert(
+        documents = db.table("data_document_smokedoc")
+        documents.insert(
             {"_guid": record_guid, "_number": "SMK-0001", "Amount": 12.5}
         )
+        for index in range(2, LIST_ROWS + 1):
+            documents.insert(
+                {
+                    "_guid": f"smoke-record-{index}",
+                    "_number": f"SMK-{index:04d}",
+                    "Amount": float(index),
+                }
+            )
         db.table("data_tp_smokedoc_items").insert(
             {"_doc_guid": record_guid, "_line_no": 1, "Quantity": 3.0}
         )
@@ -150,12 +162,61 @@ def _seed_smoke_db(db_path: Path) -> tuple[str, str, dict]:
         db.close()
 
 
+def _build_object_form(
+    gateway: RuntimeGateway,
+    *,
+    form_model: dict,
+    doc_guid: str,
+    record_guid: str,
+    payload: dict,
+) -> bool:
+    from PySide6.QtWidgets import QApplication
+
+    from src.client.forms.form_runtime_widget import FormRuntimeWidget, ObjContext
+
+    app = QApplication.instance() or QApplication([])
+    card = FormRuntimeWidget(
+        model=form_model,
+        db=GatewayDb(gateway),
+        manifest_rows=[
+            {
+                "guid": doc_guid,
+                "name": "SmokeDoc",
+                "title": "Smoke document",
+                "type": "document",
+                "payload": payload,
+            }
+        ],
+        ctx=ObjContext(
+            obj_guid=doc_guid,
+            obj_name="SmokeDoc",
+            obj_type="document",
+            obj_title="Smoke document",
+            form_kind="object_form",
+            rec_guid=record_guid,
+        ),
+    )
+    card.show()
+    app.processEvents()
+    try:
+        if card._record.get("_guid") != record_guid:
+            raise AssertionError(f"object form did not load record: {card._record!r}")
+        if float(card._record.get("Amount") or 0.0) != 12.5:
+            raise AssertionError(f"object form lost requisite: {card._record!r}")
+        items = card._tp_tables.get("Items")
+        if items is None or items.model() is None or items.model().rowCount() != 1:
+            raise AssertionError("object form did not load tabular part")
+    finally:
+        card.close()
+        card.deleteLater()
+        app.processEvents()
+    return True
+
+
 def main() -> int:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     port = _free_port()
-    control_port = _free_port()
     runtime_url = f"http://127.0.0.1:{port}"
-    control_url = f"http://127.0.0.1:{control_port}"
     timings: dict[str, float] = {}
 
     with tempfile.TemporaryDirectory(prefix="metaplatform-runtime-smoke-") as tmp:
@@ -207,110 +268,104 @@ def main() -> int:
             if len(rows) != 1 or rows[0].get("Amount") != 12.5:
                 raise AssertionError(f"unexpected point-read result: {rows!r}")
 
+            list_rows, timings["list_load"] = _timed(
+                "list_load",
+                lambda: gateway.table_select(
+                    "data_document_smokedoc", {}, limit=100
+                ),
+            )
+            if len(list_rows) != LIST_ROWS:
+                raise AssertionError(
+                    f"unexpected list row count: {len(list_rows)} != {LIST_ROWS}"
+                )
+
             env = {
                 **os.environ,
                 "QT_QPA_PLATFORM": "offscreen",
                 "PYTHONUTF8": "1",
             }
-            configurator_proc = subprocess.Popen(
-                [
-                    sys.executable,
-                    "-m",
-                    "src.configurator.configurator_app",
-                    "--runtime",
-                    runtime_url,
-                    "--db-uid",
-                    db_uid,
-                    "--db-path",
-                    str(db_path),
-                    "--control-api-host",
-                    "127.0.0.1",
-                    "--control-api-port",
-                    str(control_port),
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                env=env,
-            )
-            timings["configurator_startup"] = _wait_health(
-                f"{control_url}/health",
-                configurator_proc,
-                BUDGETS["configurator_startup"],
-                "Configurator",
-            )
-
-            state, timings["configurator_open"] = _timed(
-                "configurator_open",
-                lambda: _http_json(
-                    f"{control_url}/command",
-                    payload={"action": "open", "payload": {"guid": doc_guid}},
-                    timeout=BUDGETS["configurator_open"],
-                ).get("data", {}),
-            )
-            if doc_guid not in list(state.get("open_windows") or []):
-                raise AssertionError(f"Configurator did not open smoke document: {state!r}")
-
-            def build_object_form():
-                from PySide6.QtWidgets import QApplication
-                from src.client.forms.form_runtime_widget import FormRuntimeWidget, ObjContext
-
-                app = QApplication.instance() or QApplication([])
-                card = FormRuntimeWidget(
-                    model=form_model,
-                    db=GatewayDb(gateway),
-                    manifest_rows=[
-                        {
-                            "guid": doc_guid,
-                            "name": "SmokeDoc",
-                            "title": "Smoke document",
-                            "type": "document",
-                            "payload": payload,
-                        }
+            for cycle in range(1, CONFIGURATOR_CYCLES + 1):
+                control_port = _free_port()
+                control_url = f"http://127.0.0.1:{control_port}"
+                configurator_proc = subprocess.Popen(
+                    [
+                        sys.executable,
+                        "-m",
+                        "src.configurator.configurator_app",
+                        "--runtime",
+                        runtime_url,
+                        "--db-uid",
+                        db_uid,
+                        "--db-path",
+                        str(db_path),
+                        "--control-api-host",
+                        "127.0.0.1",
+                        "--control-api-port",
+                        str(control_port),
                     ],
-                    ctx=ObjContext(
-                        obj_guid=doc_guid,
-                        obj_name="SmokeDoc",
-                        obj_type="document",
-                        obj_title="Smoke document",
-                        form_kind="object_form",
-                        rec_guid=record_guid,
-                    ),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    env=env,
                 )
-                card.show()
-                app.processEvents()
-                try:
-                    if card._record.get("_guid") != record_guid:
-                        raise AssertionError(f"object form did not load record: {card._record!r}")
-                    if float(card._record.get("Amount") or 0.0) != 12.5:
-                        raise AssertionError(f"object form lost requisite: {card._record!r}")
-                    items = card._tp_tables.get("Items")
-                    if items is None or items.model() is None or items.model().rowCount() != 1:
-                        raise AssertionError("object form did not load tabular part")
-                finally:
-                    card.close()
-                    card.deleteLater()
-                    app.processEvents()
-                return True
-
-            _, timings["object_form"] = _timed("object_form", build_object_form)
-
-            close_result = _http_json(
-                f"{control_url}/command",
-                payload={"action": "close", "payload": {}},
-                timeout=BUDGETS["configurator_shutdown"],
-            ).get("data", {})
-            if not close_result.get("accepted"):
-                raise AssertionError(f"Configurator rejected close: {close_result!r}")
-            started_shutdown = time.perf_counter()
-            configurator_proc.wait(timeout=BUDGETS["configurator_shutdown"])
-            timings["configurator_shutdown"] = time.perf_counter() - started_shutdown
-            if configurator_proc.returncode != 0:
-                output = configurator_proc.stdout.read() if configurator_proc.stdout else ""
-                raise RuntimeError(
-                    f"Configurator exited with {configurator_proc.returncode}\n{output}"
+                timings[f"configurator_startup_{cycle}"] = _wait_health(
+                    f"{control_url}/health",
+                    configurator_proc,
+                    BUDGETS["configurator_startup"],
+                    f"Configurator cycle {cycle}",
                 )
-            configurator_proc = None
+
+                state, open_elapsed = _timed(
+                    "configurator_open",
+                    lambda: _http_json(
+                        f"{control_url}/command",
+                        payload={"action": "open", "payload": {"guid": doc_guid}},
+                        timeout=BUDGETS["configurator_open"],
+                    ).get("data", {}),
+                )
+                timings[f"configurator_open_{cycle}"] = open_elapsed
+                if doc_guid not in list(state.get("open_windows") or []):
+                    raise AssertionError(
+                        f"Configurator cycle {cycle} did not open smoke document: {state!r}"
+                    )
+
+                if cycle == 1:
+                    _, timings["object_form"] = _timed(
+                        "object_form",
+                        lambda: _build_object_form(
+                            gateway,
+                            form_model=form_model,
+                            doc_guid=doc_guid,
+                            record_guid=record_guid,
+                            payload=payload,
+                        ),
+                    )
+
+                close_result = _http_json(
+                    f"{control_url}/command",
+                    payload={"action": "close", "payload": {}},
+                    timeout=BUDGETS["configurator_shutdown"],
+                ).get("data", {})
+                if not close_result.get("accepted"):
+                    raise AssertionError(
+                        f"Configurator cycle {cycle} rejected close: {close_result!r}"
+                    )
+                started_shutdown = time.perf_counter()
+                configurator_proc.wait(timeout=BUDGETS["configurator_shutdown"])
+                shutdown_elapsed = time.perf_counter() - started_shutdown
+                timings[f"configurator_shutdown_{cycle}"] = shutdown_elapsed
+                if shutdown_elapsed > BUDGETS["configurator_shutdown"]:
+                    raise AssertionError(
+                        f"configurator_shutdown exceeded budget in cycle {cycle}: "
+                        f"{shutdown_elapsed:.3f}s > {BUDGETS['configurator_shutdown']:.3f}s"
+                    )
+                if configurator_proc.returncode != 0:
+                    output = configurator_proc.stdout.read() if configurator_proc.stdout else ""
+                    raise RuntimeError(
+                        f"Configurator cycle {cycle} exited with "
+                        f"{configurator_proc.returncode}\n{output}"
+                    )
+                configurator_proc = None
 
             closed, timings["close_session"] = _timed(
                 "close_session", gateway.close_session
