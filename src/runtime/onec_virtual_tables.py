@@ -950,10 +950,9 @@ class VirtualOneCDataTables:
     def _reference_presentations(self) -> dict[str, str]:
         """Build a UUID -> presentation map from imported catalog/enum rows.
 
-        Parse1CD normally provides resolved_name on reference values. Some
-        configurations omit it for enum/reference variants, so Runtime keeps a
-        deterministic fallback sourced from the imported target rows instead
-        of showing a raw UUID to the user.
+        Modern migration manifests contain rowid ranges for every source table,
+        so unresolved references can hydrate only catalog/enum ranges instead
+        of scanning the full packed business-data table.
         """
         cached = self._reference_presentation_cache
         if cached is not None:
@@ -966,14 +965,46 @@ class VirtualOneCDataTables:
             if ref.kind == "catalog" and str(ref.source_table or "").strip()
         }
         presentations: dict[str, str] = {}
-        if catalog_sources:
+        fallback_rows: list[dict[str, Any]] | None = None
+        packed_table = None
+        if catalog_sources and self.packed_table:
             try:
-                packed_rows = self._load_all_packed_rows()
+                packed_table = self.db.table(self.packed_table)
             except Exception:
-                packed_rows = []
-            for packed_row in packed_rows:
-                source_table = str(packed_row.get("__source_table") or "").strip()
-                if source_table not in catalog_sources:
+                packed_table = None
+
+        for source_table in sorted(catalog_sources):
+            candidates: list[dict[str, Any]] = []
+            rowid_range = self.source_rowid_ranges.get(source_table)
+            if packed_table is not None and rowid_range:
+                first_rowid, last_rowid = rowid_range
+                try:
+                    range_reader = getattr(packed_table, "select_rowid_range", None)
+                    if callable(range_reader):
+                        candidates = list(
+                            range_reader(int(first_rowid), int(last_rowid)) or []
+                        )
+                    else:
+                        for rowid in range(int(first_rowid), int(last_rowid) + 1):
+                            found = packed_table.select(where={"rowid": rowid}, limit=1) or []
+                            if found:
+                                candidates.append(dict(found[0]))
+                except Exception:
+                    candidates = []
+            if not candidates:
+                if fallback_rows is None:
+                    try:
+                        fallback_rows = self._load_all_packed_rows()
+                    except Exception:
+                        fallback_rows = []
+                candidates = [
+                    dict(row)
+                    for row in fallback_rows
+                    if str(row.get("__source_table") or "").strip() == source_table
+                ]
+
+            for packed_row in candidates:
+                if str(packed_row.get("__source_table") or "").strip() != source_table:
                     continue
                 try:
                     payload = self._row_payload(dict(packed_row))
