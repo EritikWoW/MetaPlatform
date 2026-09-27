@@ -31,7 +31,7 @@ jobs:
           cache: "pip"
           cache-dependency-path: "requirements.lock"
 
-      - name: Install pinned direct dependencies
+      - name: Install fully pinned dependencies
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
@@ -52,6 +52,9 @@ jobs:
 
       - name: Runtime + Configurator + Client process smoke
         run: python -m src.scripts.runtime_process_smoke
+
+      - name: Build release bundle smoke
+        run: python -m src.scripts.build_release --output .artifacts/release-smoke
 
       - name: Audit Python dependencies
         run: python -m pip_audit -r requirements.lock --progress-spinner off
