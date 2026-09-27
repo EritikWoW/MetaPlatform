@@ -28,6 +28,8 @@ The bundle contains Launcher, Runtime, Configurator, Client, assets, migration c
 
 ## Representative .1CD gate
 
+Direct .1CD parsing uses the external Parse1CD backend. Configure META_PARSE1CD_PARSER to an authorised parser checkout before running this gate; parser-specific unit tests are skipped when that optional backend is absent from a clean public checkout.
+
 Real business databases must not be committed to the repository or uploaded to public CI. Before a release intended for a specific 1C/BAS database, run:
 
 ~~~powershell
