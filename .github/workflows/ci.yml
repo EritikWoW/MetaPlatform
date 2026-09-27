@@ -63,4 +63,4 @@ jobs:
         run: python -m src.scripts.release_repro_smoke
 
       - name: Audit Python dependencies
-        run: python -m pip_audit -r requirements.lock --disable-pip --progress-spinner off
+        run: python -m pip_audit -r requirements.lock --disable-pip --no-deps --progress-spinner off

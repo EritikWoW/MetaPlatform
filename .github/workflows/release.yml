@@ -42,7 +42,7 @@ jobs:
           python -m src.scripts.import_contract_smoke
           python -m src.scripts.runtime_process_smoke
           python -m src.scripts.release_repro_smoke
-          python -m pip_audit -r requirements.lock --disable-pip --progress-spinner off
+          python -m pip_audit -r requirements.lock --disable-pip --no-deps --progress-spinner off
 
       - name: Build release artifacts
         run: python -m src.scripts.build_release --output dist
