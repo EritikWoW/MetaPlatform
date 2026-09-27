@@ -92,6 +92,45 @@ class ConfiguratorControlBridge(QObject):
         action = str(action or "").strip().lower()
         if action in ("health", "ping"):
             return {"status": "ok", "ts": time.time()}
+        if action == "close":
+            app = QApplication.instance()
+            quit_on_last_window: bool | None = None
+            if app is not None:
+                try:
+                    quit_on_last_window = bool(app.quitOnLastWindowClosed())
+                    # Closing the last visible window normally terminates the Qt
+                    # event loop immediately. Keep it alive long enough for the
+                    # HTTP worker to write the close response and for the control
+                    # listener to be shut down deterministically.
+                    app.setQuitOnLastWindowClosed(False)
+                except Exception:
+                    quit_on_last_window = None
+
+            accepted = bool(self._view.close())
+            if accepted:
+                server = getattr(self, "_server", None)
+
+                def _finish_close() -> None:
+                    self.abort_debug_pause()
+                    if server is not None:
+                        try:
+                            server.shutdown()
+                        except Exception:
+                            pass
+                        try:
+                            server.server_close()
+                        except Exception:
+                            pass
+                    if app is not None:
+                        app.quit()
+
+                QTimer.singleShot(150, _finish_close)
+            elif app is not None and quit_on_last_window is not None:
+                try:
+                    app.setQuitOnLastWindowClosed(quit_on_last_window)
+                except Exception:
+                    pass
+            return {"accepted": accepted}
         if action == "state":
             return self._state(include_tree=bool(payload.get("include_tree")))
         if action == "refresh":

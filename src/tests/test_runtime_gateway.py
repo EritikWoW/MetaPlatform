@@ -631,3 +631,40 @@ def test_onec_import_attach_prefers_explicit_session_and_falls_back_to_latest_ac
             10.0,
         ),
     ]
+
+
+def test_post_correlates_request_id_in_body_and_header(monkeypatch) -> None:
+    import json
+
+    captured = {}
+
+    class _Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self):
+            body = json.loads(captured["request"].data.decode("utf-8"))
+            captured["body"] = body
+            return json.dumps(
+                {"id": body["id"], "status": "ok", "data": {"value": 1}, "error": None}
+            ).encode("utf-8")
+
+    def _urlopen(request, timeout):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        return _Response()
+
+    monkeypatch.setattr("src.runtime.gateway.urllib.request.urlopen", _urlopen)
+    gw = RuntimeGateway("http://127.0.0.1:8765")
+    result = gw._post("manifest.info", {"session_id": "sid"}, timeout=2.5)
+
+    assert result.status == "ok"
+    assert result.data == {"value": 1}
+    assert result.request_id == captured["body"]["id"]
+    assert captured["request"].get_header("X-request-id") == result.request_id
+    assert captured["timeout"] == 2.5

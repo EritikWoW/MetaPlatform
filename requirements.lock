@@ -1,0 +1,46 @@
+# Fully pinned Python 3.13 dependency set used by Windows CI and release builds.
+# Regenerate intentionally after dependency review; pip-audit validates this file in CI.
+
+CacheControl==0.14.4
+Pillow==12.3.0
+PySide6==6.11.2
+PySide6-Addons==6.11.2
+PySide6-Essentials==6.11.2
+boolean.py==5.0
+certifi==2026.7.22
+charset-normalizer==3.5.1
+colorama==0.4.6
+cyclonedx-python-lib==11.12.0
+defusedxml==0.7.1
+et-xmlfile==2.0.0
+filelock==4.0.4
+idna==3.20
+iniconfig==2.3.0
+license-expression==30.4.4
+markdown-it-py==4.2.0
+mdurl==0.1.2
+msgpack==1.2.2
+openpyxl==3.1.5
+packageurl-python==0.17.6
+packaging==26.3
+pip==26.2.1
+pip-api==0.0.35
+pip-audit==2.10.1
+pip-requirements-parser==32.0.1
+platformdirs==4.12.0
+pluggy==1.6.0
+py-serializable==2.1.0
+Pygments==2.21.0
+pyparsing==3.3.3
+pytest==9.1.1
+pywin32==312; sys_platform == "win32"
+requests==2.34.2
+rich==15.0.0
+setuptools==80.9.0
+shiboken6==6.11.2
+sortedcontainers==2.4.0
+tomli==2.4.1
+tomli-w==1.2.0
+urllib3==2.8.0
+wheel==0.45.1
+zstandard==0.25.0

@@ -64,6 +64,7 @@ def test_code_edit_composes_workspace_diagnostics_with_current_line() -> None:
         [
             {
                 "line": 2,
+                "col": 2,
                 "severity": "error",
                 "message": "Missing member",
             }
@@ -72,6 +73,7 @@ def test_code_edit_composes_workspace_diagnostics_with_current_line() -> None:
 
     assert sorted(edit._workspace_diagnostics) == [2]
     assert len(edit.extraSelections()) == 2
+    assert any(sel.cursor.selectedText() == "two" for sel in edit.extraSelections())
     block = edit.document().findBlockByNumber(1)
     line_y = int(
         edit.blockBoundingGeometry(block).translated(edit.contentOffset()).top()
@@ -914,3 +916,25 @@ def test_module_assets_use_internal_mixed_profile_without_public_mixed_option() 
 
     assert widget._effective_module_language() == "mixed"
     assert [widget._lang_combo.itemText(i) for i in range(widget._lang_combo.count())] == ["UK", "EN"]
+
+
+def test_code_template_tab_moves_between_editable_placeholders() -> None:
+    app = QApplication.instance() or QApplication([])
+    edit = _CodeEdit()
+    edit.setPlainText("")
+    edit.show()
+    app.processEvents()
+
+    cursor = edit.textCursor()
+    cursor.insertText("Name Condition Value")
+    edit.setTextCursor(cursor)
+    assert edit._activate_snippet_stops("Name Condition Value", 0)
+    assert edit.textCursor().selectedText() == "Name"
+
+    QTest.keyClick(edit, Qt.Key.Key_Tab)
+    assert edit.textCursor().selectedText() == "Condition"
+    QTest.keyClick(edit, Qt.Key.Key_Tab)
+    assert edit.textCursor().selectedText() == "Value"
+    QTest.keyClick(edit, Qt.Key.Key_Tab)
+    assert not edit.textCursor().hasSelection()
+    edit.deleteLater()

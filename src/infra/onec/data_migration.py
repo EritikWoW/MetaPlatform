@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from src.mpdb.mpdb import ASSETS_TABLE, META_ASSETS, Mpdb
+from src.mpdb.table_storage import reset_table_storage
 
 
 ONECD_DATA_MIGRATION_ASSET_KEY = "onec_data_migration/manifest.json"
@@ -466,6 +467,43 @@ def _drop_empty_target_table(db: Mpdb, table_name: str) -> bool:
     return True
 
 
+def _reset_target_table(db: Mpdb, table_name: str) -> bool:
+    """Remove a previous migration target and all of its storage metadata."""
+    name = str(table_name or "").strip()
+    if not name or not _table_exists(db, name):
+        return False
+    schema_ref = ""
+    try:
+        schema_ref = str(
+            (getattr(db, "_meta", {}).get("tables", {}).get(name, {}) or {}).get("schema_ref")
+            or ""
+        ).strip()
+    except Exception:
+        schema_ref = ""
+    changed = bool(reset_table_storage(db, name, drop_table=True))
+    if changed and schema_ref:
+        try:
+            db.delete_asset(schema_ref)
+        except Exception:
+            pass
+    return changed
+
+
+def _delete_assets_by_prefix(db: Mpdb, prefix: str) -> int:
+    deleted = 0
+    try:
+        keys = list(db.list_assets(prefix=str(prefix or "")) or [])
+    except Exception:
+        keys = []
+    for key in keys:
+        try:
+            if db.delete_asset(str(key)):
+                deleted += 1
+        except Exception:
+            continue
+    return deleted
+
+
 def _json_safe_converter(backend: Parse1CDBackend):
     converter = getattr(backend.value_decoder, "to_json_safe", None)
     if callable(converter):
@@ -634,6 +672,8 @@ def migrate_onecd_data_to_mpdb(
     target_prefix: str = "onec",
     batch_size: int = 5000,
     storage_mode: str = "packed",
+    replace_existing: bool = True,
+    fail_on_table_errors: bool = False,
     force_include_table_names: Iterable[str] | None = None,
     progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
@@ -714,7 +754,16 @@ def migrate_onecd_data_to_mpdb(
             "rows_offloaded": 0,
             "bytes_offloaded": 0,
             "reference_index_entries": 0,
+            "source_rows": 0,
+            "active_rows_scanned": 0,
+            "tables_limited": 0,
+            "tables_failed": 0,
+            "reset_tables": 0,
+            "reset_assets": 0,
         },
+        "replace_existing": bool(replace_existing),
+        "complete": False,
+        "sampled": limit_per_table is not None,
     }
     metadata_by_kind_order = _load_metadata_by_kind_order(source)
     # Persist the UUID join, not guessed field positions or translated names.
@@ -724,6 +773,17 @@ def migrate_onecd_data_to_mpdb(
     except Exception as exc:
         manifest["mapping_warnings"] = [f"DBNames bindings unavailable: {exc}"]
     manifest["metadata_mapping_objects"] = sum(len(items) for items in metadata_by_kind_order.values())
+
+    # A migration is a replacement, not an append. Packed mode shares one
+    # physical table across all source tables, so a new run replaces the packed
+    # projection and its offloaded row assets inside the staging DB.
+    if replace_existing and storage_mode_normalized == "packed":
+        if _reset_target_table(db, packed_table):
+            manifest["summary"]["reset_tables"] += 1
+        manifest["summary"]["reset_assets"] += _delete_assets_by_prefix(
+            db, ONECD_PACKED_ROW_ASSET_PREFIX
+        )
+
     progress_started = time.monotonic()
     last_progress_at = 0.0
 
@@ -840,8 +900,10 @@ def migrate_onecd_data_to_mpdb(
             table = onecd.get_table_info(physical_name)
             if table is None:
                 manifest["errors"].append({"table": physical_name, "error": "table not found"})
+                manifest["summary"]["tables_failed"] += 1
                 continue
             source_rows = int(onecd.get_total_rows(physical_name) or 0)
+            manifest["summary"]["source_rows"] += max(0, source_rows)
             if source_rows <= 0:
                 manifest["summary"]["tables_skipped_empty"] += 1
                 _emit_progress(
@@ -900,6 +962,13 @@ def migrate_onecd_data_to_mpdb(
             )
 
             try:
+                if (
+                    replace_existing
+                    and storage_mode_normalized == "per_table"
+                    and _reset_target_table(db, target_table)
+                ):
+                    manifest["summary"]["reset_tables"] += 1
+
                 if storage_mode_normalized == "packed":
                     if not _table_exists(db, packed_table):
                         db.create_table(
@@ -972,6 +1041,15 @@ def migrate_onecd_data_to_mpdb(
                     rich_refs=True,
                     resolver=resolver,
                 ):
+                    # Enforce the sampling contract in our own loop as well.
+                    # External Parse1CD backends are allowed to ignore their
+                    # limit argument; Runtime must still never import more rows
+                    # than the explicit operator limit.
+                    if (
+                        limit_per_table is not None
+                        and source_row_index >= max(0, int(limit_per_table))
+                    ):
+                        break
                     source_row_index += 1
                     normalized_row = _normalize_row(
                         dict(row),
@@ -1090,6 +1168,7 @@ def migrate_onecd_data_to_mpdb(
             except Exception as exc:
                 table_entry["errors"].append(str(exc))
                 manifest["errors"].append({"table": physical_name, "error": str(exc)})
+                manifest["summary"]["tables_failed"] += 1
                 dropped_empty = False
                 if (
                     storage_mode_normalized == "per_table"
@@ -1114,6 +1193,20 @@ def migrate_onecd_data_to_mpdb(
                 )
 
             table_entry["duration_sec"] = round(time.time() - table_started, 3)
+            scanned_rows = int(
+                table_entry.get("_source_row_index")
+                if storage_mode_normalized == "packed"
+                else table_entry.get("imported_rows")
+                or 0
+            )
+            manifest["summary"]["active_rows_scanned"] += max(0, scanned_rows)
+            table_entry["limited"] = bool(
+                limit_per_table is not None
+                and scanned_rows >= int(limit_per_table or 0)
+                and int(table_entry.get("source_rows") or 0) > scanned_rows
+            )
+            if table_entry["limited"]:
+                manifest["summary"]["tables_limited"] += 1
             manifest["tables"].append(table_entry)
             # In packed mode the summary is recalculated after the final batch flush
             # to avoid double-counting (imported_rows is credited by _flush_global_packed_batch).
@@ -1161,6 +1254,11 @@ def migrate_onecd_data_to_mpdb(
             int(t.get("offloaded_bytes") or 0) for t in manifest["tables"]
         )
 
+    manifest["complete"] = bool(
+        limit_per_table is None
+        and not manifest.get("errors")
+        and int(manifest["summary"].get("tables_limited") or 0) == 0
+    )
     manifest["finished_at"] = time.time()
     try:
         db.put_assets_bulk(
@@ -1202,5 +1300,12 @@ def migrate_onecd_data_to_mpdb(
         db.checkpoint(durable=True)
     except Exception:
         pass
+
+    if fail_on_table_errors and manifest.get("errors"):
+        first = manifest["errors"][0]
+        raise RuntimeError(
+            "1CD data migration completed with "
+            f"{len(manifest['errors'])} error(s); first={first!r}"
+        )
 
     return manifest
