@@ -22,7 +22,7 @@ from .onec_config_parser import (
     parse_config_text,
 )
 from .module_transform import sanitize_imported_module_text
-from .physical_schema import _load_parse1cd_backend, _make_read_only_onecd_class
+from .physical_schema import _load_parse1cd_backend
 
 
 _GUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
@@ -1745,8 +1745,7 @@ class OneCDConfigSource:
             raise FileNotFoundError(str(self.onecd_path))
 
         parser_root, backend = _load_parse1cd_backend()
-        db_cls = _make_read_only_onecd_class(backend.OneCDatabase)
-        db = db_cls(str(self.onecd_path))
+        db = backend.OneCDatabase(str(self.onecd_path))
         with contextlib.redirect_stdout(io.StringIO()):
             opened = db.open()
         if not opened:

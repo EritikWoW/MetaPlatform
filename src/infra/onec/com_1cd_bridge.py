@@ -177,9 +177,8 @@ def parse_dump_info(dump_info_path: str) -> Tuple[Dict[str, ObjectRecord], Dict[
 def _read_dbnames_text(db_path: str) -> str:
     """Read and decode DBNames text from a 1CD file via Parse1CD."""
     from src.infra.onec.data_migration import _load_parse1cd_backend
-    from src.infra.onec.physical_schema import _make_read_only_onecd_class
     backend = _load_parse1cd_backend()
-    db_cls = _make_read_only_onecd_class(backend.database_parser.OneCDatabase)
+    db_cls = backend.database_parser.OneCDatabase
 
     db = db_cls(str(db_path))
     try:

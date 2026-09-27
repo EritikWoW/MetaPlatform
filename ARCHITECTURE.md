@@ -94,6 +94,16 @@ DSL применяется прежде всего для модулей/скр�
 
 Импорт 1C/BAS - отдельная подсистема трансформации внешней конфигурации в структуру MetaPlatform. Импорт сейчас завязан на Runtime RPC и безопасный staged workflow.
 
+Read-only парсер `.1CD` поставляется внутри `src/infra/onec/parser` и имеет один
+адаптер `backend.py`. Проверка физической схемы, чтение semantic metadata и
+миграция бизнес-данных используют один класс `OneCDatabase`; поиск установки
+Parse1CD в профиле пользователя, `WorkedData` или по абсолютному Windows-пути
+не является частью рабочего контура. Отдельный GUI Parse1CD в MetaPlatform не
+запускается: выбор источника, preview и импорт выполняются через Configurator/
+Runtime; standalone table-browser/export UI не заявлен как перенесённый.
+
+Physical-schema diagnostics expose descriptor-error counts; a successful file open alone does not prove that every physical field was decoded.
+
 ### 1.9. Platform API
 Пакет: `src/mp_platform`
 

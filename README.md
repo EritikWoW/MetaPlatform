@@ -17,6 +17,8 @@ MetaPlatform розвивається як самостійний експери
 Основними напрямами роботи під час Build Week стали:
 
 - пряме читання структури `.1CD`;
+- вбудоване read-only ядро Parse1CD для фізичних таблиць, потокового читання
+  бізнес-даних і metadata-імпорту `.1CD` без встановлення окремої програми;
 - перетворення metadata 1C/BAS у внутрішню модель MetaPlatform;
 - відновлення документів, реквізитів, табличних частин та пов'язаних metadata-об'єктів;
 - прискорення точкового доступу до об'єктів через B-tree та row locator у `mpdb`;
@@ -266,8 +268,9 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ### 3. Встановлення залежностей
 
 ```powershell
-python -m pip install --upgrade pip
-python -m pip install PySide6 pytest zstandard Pillow openpyxl pywin32
+python -m pip install pip==26.2.1
+python -m pip install -r requirements.lock
+python -m pip install -e . --no-deps --no-build-isolation
 ```
 
 ### 4. Перевірка середовища
@@ -487,7 +490,7 @@ MetaPlatform/
 | Client | Відтворює підтриману metadata/form-модель |
 | XML import | Підтримується |
 | Direct `.1CD` import | Підтримує значну частину metadata-структури |
-| Packaging | Не готово |
+| Packaging | Відтворюваний wheel/source bundle; standalone installer ще не готовий |
 | Installer | Не готово |
 | Stable public API | Відсутній |
 
@@ -495,8 +498,8 @@ MetaPlatform/
 
 - Немає стабільного публічного API.
 - Не гарантується backward compatibility.
-- Немає dependency lock.
-- Немає відтворюваного packaged release.
+- Повний Python 3.13 dependency set зафіксований у requirements.lock; CI додатково виконує vulnerability audit.
+- Є відтворюваний wheel/source bundle; standalone installer поки відсутній.
 - Немає installer.
 - Імпорт 1C/BAS не означає повної бінарної, мовної або поведінкової сумісності.
 - Не всі формати форм і metadata-об'єктів підтримані однаково.
@@ -541,8 +544,8 @@ Staged-імпорт знижує ризик пошкодження активн�
 
 ## Roadmap
 
-- dependency management і lock-файл;
-- packaged Windows build;
+- hash-verified/offline dependency wheelhouse;
+- standalone packaged Windows build;
 - installer;
 - стабільний release profile;
 - Runtime API versioning;
@@ -572,3 +575,44 @@ MetaPlatform — незалежний експериментальний про�
 - власна proprietary license — якщо зовнішнє використання та поширення мають бути обмежені.
 
 До публікації `LICENSE` дозвіл на зовнішнє використання, модифікацію або поширення коду не надається.
+
+
+## CI and reproducible development environment
+
+The supported development baseline is Python 3.13. The complete CI/release dependency set is pinned in `requirements.lock`; the
+same set is used by the Windows CI job.
+
+```powershell
+py -3.13 -m venv .venv
+.venv\Scripts\python.exe -m pip install pip==26.2.1
+.venv\Scripts\python.exe -m pip install -r requirements.lock
+.venv\Scripts\python.exe -m pip install -e . --no-deps --no-build-isolation
+.venv\Scripts\python.exe -m pytest -q src/tests
+.venv\Scripts\python.exe -m src.scripts.runtime_process_smoke
+```
+
+CI also compiles all Python modules, rejects tracked database/private-key/token
+artifacts, runs the complete test suite, starts Runtime as a separate process
+for an RPC smoke test, and audits installed Python dependencies for known
+vulnerabilities.
+
+
+## Audit acceptance gates
+
+Перед merge/release виконуються окремі acceptance gates:
+
+~~~powershell
+python -m src.scripts.import_contract_smoke
+python -m src.scripts.runtime_process_smoke
+python -m src.scripts.build_release --output dist
+~~~
+
+Для representative .1CD реальні бізнес-дані не передаються в CI. Локальний
+повний gate запускається без sample-ліміту і може додатково перевірити повторний
+імпорт:
+
+~~~powershell
+python -m src.scripts.real_onecd_gate --source "C:\Data\Base.1CD" --repeat --representative-document "РеализацияТоваровУслуг" --report .artifacts\real-onecd-gate.json
+~~~
+
+Деталі release/rollback: docs/RELEASE.md.

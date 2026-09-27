@@ -506,6 +506,8 @@ def handle_import_action(handler, action: str, payload: dict) -> RpcResponse | N
                     target_prefix=str(payload.get("data_target_prefix") or "onec"),
                     batch_size=max(1, int(payload.get("data_batch_size") or 5000)),
                     storage_mode=str(payload.get("data_storage_mode") or "packed"),
+                    replace_existing=True,
+                    fail_on_table_errors=True,
                     force_include_table_names=tuple(payload.get("data_force_include_tables") or ("v8users",)),
                     progress=_data_progress,
                 )

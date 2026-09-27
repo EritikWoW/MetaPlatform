@@ -258,6 +258,8 @@ class _CodeEdit(QPlainTextEdit):
         self._breakpoint_meta: dict[int, BreakpointSpec] = {}
         self._debug_line: int = 0
         self._workspace_diagnostics: dict[int, list[dict]] = {}
+        self._snippet_stops: list[QTextCursor] = []
+        self._snippet_stop_index: int = -1
         self.breakpointToggled = None
         self._autocomplete_handler = None
         self._autocomplete_insert_handler = None
@@ -309,20 +311,37 @@ class _CodeEdit(QPlainTextEdit):
             block = self.document().findBlockByNumber(int(line_no) - 1)
             if not block.isValid():
                 continue
-            sel = QTextEdit_ExtraSelection()
-            sel.cursor = QTextCursor(block)
-            sel.cursor.select(QTextCursor.SelectionType.LineUnderCursor)
-            has_error = any(
-                str(item.get("severity") or "") == "error"
-                for item in diagnostics
-            )
-            sel.format.setUnderlineStyle(
-                QTextCharFormat.UnderlineStyle.WaveUnderline
-            )
-            sel.format.setUnderlineColor(
-                QColor("#F87171" if has_error else "#FBBF24")
-            )
-            extra.append(sel)
+            line_text = block.text()
+            for diagnostic in diagnostics:
+                sel = QTextEdit_ExtraSelection()
+                cursor = QTextCursor(block)
+                col = max(1, int(diagnostic.get("col") or 1))
+                end_col = max(0, int(diagnostic.get("end_col") or 0))
+                start = block.position() + min(max(0, col - 1), len(line_text))
+                cursor.setPosition(start)
+                if end_col > col:
+                    end = block.position() + min(max(0, end_col - 1), len(line_text))
+                    cursor.setPosition(max(start + 1, end), QTextCursor.MoveMode.KeepAnchor)
+                else:
+                    cursor.select(QTextCursor.SelectionType.WordUnderCursor)
+                    if not cursor.hasSelection() and start < block.position() + len(line_text):
+                        cursor.movePosition(
+                            QTextCursor.MoveOperation.Right,
+                            QTextCursor.MoveMode.KeepAnchor,
+                            1,
+                        )
+                sel.cursor = cursor
+                sel.format.setUnderlineStyle(
+                    QTextCharFormat.UnderlineStyle.WaveUnderline
+                )
+                sel.format.setUnderlineColor(
+                    QColor(
+                        "#F87171"
+                        if str(diagnostic.get("severity") or "") == "error"
+                        else "#FBBF24"
+                    )
+                )
+                extra.append(sel)
         if not self.isReadOnly():
             sel = QTextEdit_ExtraSelection()
             line_color = QColor(self.palette().color(QPalette.ColorRole.Base))
@@ -818,6 +837,42 @@ class _CodeEdit(QPlainTextEdit):
             cursor.endEditBlock()
         self.setTextCursor(cursor)
 
+    def _activate_snippet_stops(self, text: str, start: int) -> bool:
+        placeholder_re = re.compile(
+            r"\b(Name|ІмяФункції|ИмяПроцедуры|Condition|Умова|Value|Значення|Collection|Колекція)\b"
+        )
+        self._snippet_stops = []
+        self._snippet_stop_index = -1
+        for match in placeholder_re.finditer(str(text or "")):
+            cursor = QTextCursor(self.document())
+            cursor.setPosition(int(start) + match.start())
+            cursor.setPosition(
+                int(start) + match.end(),
+                QTextCursor.MoveMode.KeepAnchor,
+            )
+            self._snippet_stops.append(cursor)
+        if not self._snippet_stops:
+            return False
+        self._snippet_stop_index = 0
+        self.setTextCursor(self._snippet_stops[0])
+        return True
+
+    def _advance_snippet_stop(self) -> bool:
+        if not self._snippet_stops:
+            return False
+        next_index = self._snippet_stop_index + 1
+        if next_index >= len(self._snippet_stops):
+            end = self._snippet_stops[-1].selectionEnd()
+            cursor = QTextCursor(self.document())
+            cursor.setPosition(end)
+            self.setTextCursor(cursor)
+            self._snippet_stops = []
+            self._snippet_stop_index = -1
+            return True
+        self._snippet_stop_index = next_index
+        self.setTextCursor(self._snippet_stops[next_index])
+        return True
+
     def keyPressEvent(self, event) -> None:  # noqa: N802
         from PySide6.QtCore import Qt as _Qt
         completer = getattr(self, "_autocomplete_completer", None)
@@ -888,6 +943,9 @@ class _CodeEdit(QPlainTextEdit):
                 event.accept()
                 return
         if event.key() == Qt.Key.Key_Tab and not bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            if self._advance_snippet_stop():
+                event.accept()
+                return
             if self._indent_blocks(reverse=False):
                 event.accept()
                 return
@@ -954,8 +1012,9 @@ class _CodeEdit(QPlainTextEdit):
         cursor = self.textCursor()
         start = cursor.position()
         cursor.insertText(text)
-        cursor.setPosition(start + caret_offset)
-        self.setTextCursor(cursor)
+        if not self._activate_snippet_stops(text, start):
+            cursor.setPosition(start + caret_offset)
+            self.setTextCursor(cursor)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
         super().mouseReleaseEvent(event)

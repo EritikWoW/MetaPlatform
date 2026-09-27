@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import time
+import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
 from src.mpdb.mpdb import Mpdb
+
+
+_log = logging.getLogger(__name__)
+
 
 from .server_handlers_assets import handle_asset_action
 from .server_handlers_debug import handle_debug_action
@@ -55,21 +62,50 @@ class RuntimeHandler(BaseHTTPRequestHandler):
         if self.path != "/rpc":
             self._send_json({"status": "error", "error": "Not found"}, code=404)
             return
+        started = time.perf_counter()
+        action = ""
+        payload: dict[str, Any] = {}
+        request_id = str(self.headers.get("X-Request-ID") or "").strip() or uuid.uuid4().hex
+        status = "error"
         try:
             raw = self.rfile.read(int(self.headers.get("Content-Length") or "0"))
             req = json.loads(raw.decode("utf-8")) if raw else {}
             action = str(req.get("action") or "").strip()
             payload = req.get("payload") or {}
-            rid = req.get("id")
+            request_id = str(req.get("id") or request_id)
             res = self._handle(action, payload)
-            self._send_json({"id": rid, "status": res.status, "data": res.data, "error": res.error})
+            status = str(res.status or "error")
+            self._send_json(
+                {"id": request_id, "status": res.status, "data": res.data, "error": res.error}
+            )
         except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
-            return
+            status = "client_disconnected"
         except Exception as e:
             try:
-                self._send_json({"status": "error", "error": f"{type(e).__name__}: {e}"})
+                self._send_json(
+                    {
+                        "id": request_id,
+                        "status": "error",
+                        "error": f"{type(e).__name__}: {e}",
+                    }
+                )
             except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
-                return
+                status = "client_disconnected"
+        finally:
+            duration_ms = (time.perf_counter() - started) * 1000.0
+            try:
+                slow_ms = float(os.environ.get("META_RUNTIME_SLOW_REQUEST_MS") or 1000.0)
+            except Exception:
+                slow_ms = 1000.0
+            log_fn = _log.warning if duration_ms >= max(0.0, slow_ms) else _log.info
+            log_fn(
+                "runtime rpc request_id=%s action=%s status=%s duration_ms=%.1f session_id=%s",
+                request_id,
+                action,
+                status,
+                duration_ms,
+                str(payload.get("session_id") or ""),
+            )
 
     def _require_db(self, payload: dict) -> Mpdb | RpcResponse:
         sid = str(payload.get("session_id") or "")
