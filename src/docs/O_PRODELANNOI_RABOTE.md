@@ -3214,7 +3214,7 @@ MVP-подход:
 - Реальный bounded smoke `src.scripts.check_onecd_backend` использует только указанный оператором `.1CD`, пишет не в источник, импортирует максимум выбранное число записей во временный `mpdb`, повторно открывает её и проверяет SHA-256 источника до и после.
 
 ### Проверка
-- Полный `pytest -q src/tests`: `1351 passed, 1 skipped, 4 warnings`.
+- Полный `pytest -q src/tests`: local `1353 passed, 1 skipped, 4 warnings`; Windows CI run 36336414595: `1354 passed, 4 warnings`.
 - Профильные backend/metadata/data migration и control API tests: `130 passed`; после добавления диагностики — `18 passed`.
 - `compileall -q src`, `git diff --check` и `ci_private_data_check` прошли.
 - Runtime -> Configurator -> Client process smoke завершился успешно: Configurator трижды стартовал/закрылся; три shutdown заняли 0.077, 0.096 и 0.082 с.
@@ -3223,4 +3223,4 @@ MVP-подход:
 ### Границы
 - Reader поддерживает физический тип `VB` как поле с объявленной inline-шириной и сохраняет его содержимое как сырые bytes. На этой базе теперь открываются 3,583 table descriptors без ошибок (ранее пропускались четыре descriptors с типом `VB`); у этих четырёх таблиц потоки данных пустые, поэтому реальные непустые `VB`-значения этой базой не проверяются. Добавлен синтетический тест ширины 16 байт и raw decoding.
 - Smoke импортировал одну строку (лимит 2) и не доказывает полноту бизнес-миграции, повторный production import, sample/document completeness или live swap. Это остаётся в [issue #2](https://github.com/EritikWoW/MetaPlatform/issues/2).
-- Для объединённого backend CI прошёл на Windows: полный suite и Runtime + Configurator + Client process smoke зелёные; `pip-audit` также прошёл после обновления исправленных build tools. Текущие изменения `VB` повторно проверяются локально на полном suite; remote CI будет запущен после push.
+- Для объединённого backend Windows CI run 36336414595 прошёл: полный suite, synthetic import contract, Runtime + Configurator + Client process smoke, reproducible release bundle и `pip-audit` (`No known vulnerabilities found`).
