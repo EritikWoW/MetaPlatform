@@ -619,7 +619,7 @@ def test_repeat_packed_migration_replaces_rows_and_resets_locator(monkeypatch, t
         table = db.table("onec__data_rows")
         rows = table.select()
         assert len(rows) == 1
-        point = table.select(where={"rowid": 1}, limit=1)
+        point = table.select_rowid_range(1, 1, limit=1)
         assert len(point) == 1
         assert point[0]["data"]["description"] == "Goods"
         assert first["summary"]["rows_imported"] == 1
