@@ -67,13 +67,30 @@ def _http_json(url: str, *, payload: dict | None = None, timeout: float = 2.0) -
     return data
 
 
-def _wait_health(url: str, proc: subprocess.Popen[str], budget: float, label: str) -> float:
+def _read_log_tail(path: Path, limit: int = 4000) -> str:
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as stream:
+            stream.seek(0, os.SEEK_END)
+            size = stream.tell()
+            stream.seek(max(0, size - limit))
+            return stream.read()
+    except OSError:
+        return ""
+
+
+def _wait_health(
+    url: str,
+    proc: subprocess.Popen[str],
+    log_path: Path,
+    budget: float,
+    label: str,
+) -> float:
     started = time.perf_counter()
     deadline = started + budget
     last_error = ""
     while time.perf_counter() < deadline:
         if proc.poll() is not None:
-            output = proc.stdout.read() if proc.stdout else ""
+            output = _read_log_tail(log_path)
             raise RuntimeError(
                 f"{label} exited before health check: code={proc.returncode}\n{output}"
             )
@@ -223,25 +240,27 @@ def main() -> int:
         db_path = Path(tmp) / "smoke.mpdb"
         doc_guid, record_guid, form_model = _seed_smoke_db(db_path)
 
-        runtime_proc = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "src.scripts.run_runtime_server_cmd",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(port),
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
+        runtime_log_path = Path(tmp) / "runtime.log"
+        with runtime_log_path.open("w", encoding="utf-8") as runtime_log:
+            runtime_proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "src.scripts.run_runtime_server_cmd",
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    str(port),
+                ],
+                stdout=runtime_log,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
         gateway = RuntimeGateway(runtime_url)
         configurator_proc: subprocess.Popen[str] | None = None
         try:
             timings["startup"] = _wait_health(
-                f"{runtime_url}/health", runtime_proc, BUDGETS["startup"], "Runtime"
+                f"{runtime_url}/health", runtime_proc, runtime_log_path, BUDGETS["startup"], "Runtime"
             )
 
             opened, timings["open_db"] = _timed(
@@ -287,30 +306,33 @@ def main() -> int:
             for cycle in range(1, CONFIGURATOR_CYCLES + 1):
                 control_port = _free_port()
                 control_url = f"http://127.0.0.1:{control_port}"
-                configurator_proc = subprocess.Popen(
-                    [
-                        sys.executable,
-                        "-m",
-                        "src.configurator.configurator_app",
-                        "--runtime",
-                        runtime_url,
-                        "--db-uid",
-                        db_uid,
-                        "--db-path",
-                        str(db_path),
-                        "--control-api-host",
-                        "127.0.0.1",
-                        "--control-api-port",
-                        str(control_port),
-                    ],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    env=env,
-                )
+                configurator_log_path = Path(tmp) / f"configurator-{cycle}.log"
+                with configurator_log_path.open("w", encoding="utf-8") as configurator_log:
+                    configurator_proc = subprocess.Popen(
+                        [
+                            sys.executable,
+                            "-m",
+                            "src.configurator.configurator_app",
+                            "--runtime",
+                            runtime_url,
+                            "--db-uid",
+                            db_uid,
+                            "--db-path",
+                            str(db_path),
+                            "--control-api-host",
+                            "127.0.0.1",
+                            "--control-api-port",
+                            str(control_port),
+                        ],
+                        stdout=configurator_log,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        env=env,
+                    )
                 timings[f"configurator_startup_{cycle}"] = _wait_health(
                     f"{control_url}/health",
                     configurator_proc,
+                    configurator_log_path,
                     BUDGETS["configurator_startup"],
                     f"Configurator cycle {cycle}",
                 )
@@ -354,7 +376,13 @@ def main() -> int:
                         f"Configurator cycle {cycle} rejected close: {close_result!r}"
                     )
                 started_shutdown = time.perf_counter()
-                configurator_proc.wait(timeout=BUDGETS["configurator_shutdown"])
+                try:
+                    configurator_proc.wait(timeout=BUDGETS["configurator_shutdown"])
+                except subprocess.TimeoutExpired as exc:
+                    output = _read_log_tail(configurator_log_path)
+                    raise RuntimeError(
+                        f"Configurator cycle {cycle} did not stop after close.\n{output}"
+                    ) from exc
                 shutdown_elapsed = time.perf_counter() - started_shutdown
                 timings[f"configurator_shutdown_{cycle}"] = shutdown_elapsed
                 if shutdown_elapsed > BUDGETS["configurator_shutdown"]:
@@ -363,7 +391,7 @@ def main() -> int:
                         f"{shutdown_elapsed:.3f}s > {BUDGETS['configurator_shutdown']:.3f}s"
                     )
                 if configurator_proc.returncode != 0:
-                    output = configurator_proc.stdout.read() if configurator_proc.stdout else ""
+                    output = _read_log_tail(configurator_log_path)
                     raise RuntimeError(
                         f"Configurator cycle {cycle} exited with "
                         f"{configurator_proc.returncode}\n{output}"
