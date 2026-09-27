@@ -7,7 +7,7 @@ from src.platform.locale_detect import detect_system_lang
 from src.platform.logging_setup import setup_logging
 from src.ui_qt.i18n import init_i18n, t
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSize, Qt, QThread, QObject, Signal, Slot, QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtGui import QIcon, QPixmap
 
@@ -15,6 +15,7 @@ from src.ui_qt.splash import AppSplash
 from src.ui_qt.theme import apply_hybrid_theme, set_app_icon
 from .configurator_window import ConfiguratorWindow
 from src.ui_qt.viewmodels.configurator_vm import ConfiguratorViewModel
+from src.configurator.application.service import ConfiguratorService
 from .configurator_controller import (
     SvgIconPack,
     SvgIconPackConfig,
@@ -197,6 +198,115 @@ def _icon_provider_factory(here: Path):
     return icon_provider
 
 
+class _StartupOpenWorker(QThread):
+    opened = Signal(object, object)
+    failed = Signal(str)
+
+    def __init__(self, runtime_url: str, db_uid: str, db_path: str) -> None:
+        super().__init__()
+        self._runtime_url = runtime_url
+        self._db_uid = db_uid
+        self._db_path = db_path
+
+    def run(self) -> None:
+        service = ConfiguratorService()
+        try:
+            result = service.open_db(
+                self._runtime_url,
+                self._db_uid,
+                db_path=self._db_path,
+            )
+        except Exception as exc:
+            self.failed.emit(f"{type(exc).__name__}: {exc}")
+            return
+        self.opened.emit(service, result)
+
+
+class _StartupController(QObject):
+    def __init__(
+        self,
+        *,
+        app: QApplication,
+        splash: AppSplash,
+        view: ConfiguratorWindow,
+        runtime_url: str,
+        db_uid: str,
+        db_path: str,
+        icon_provider,
+        control_api_host: str,
+        control_api_port: int,
+    ) -> None:
+        super().__init__(app)
+        self._app = app
+        self._splash = splash
+        self._view = view
+        self._runtime_url = runtime_url
+        self._db_uid = db_uid
+        self._db_path = db_path
+        self._icon_provider = icon_provider
+        self._control_api_host = control_api_host
+        self._control_api_port = control_api_port
+        self._worker = _StartupOpenWorker(runtime_url, db_uid, db_path)
+        self._worker.opened.connect(self._on_opened)
+        self._worker.failed.connect(self._on_failed)
+
+    def start(self) -> None:
+        self._splash.set_progress(28, t("startup_runtime_connect"))
+        self._worker.start()
+
+    @Slot(object, object)
+    def _on_opened(self, service: object, result: object) -> None:
+        try:
+            self._splash.set_progress(52, t("startup_tree_build"))
+            vm = ConfiguratorViewModel(
+                self._runtime_url,
+                self._db_uid,
+                dialogs=self._view,
+                icon_provider=self._icon_provider,
+                db_path=self._db_path,
+                startup_progress_cb=self._splash.set_progress,
+                eager_runtime_refresh=True,
+                preopened=(service, result),
+            )
+            self._view._startup_vm = vm
+            self._splash.set_progress(90, t("startup_bind_ui"))
+            self._view.bind(vm)
+            try:
+                from .control_api import start_control_api
+
+                start_control_api(
+                    self._view,
+                    vm,
+                    host=self._control_api_host,
+                    port=self._control_api_port,
+                )
+            except Exception as exc:
+                print(f"[control] disabled: {type(exc).__name__}: {exc}", flush=True)
+            self._view.end_tree_rebuild()
+            self._view.expand_default()
+
+            self._splash.set_progress(96, t("startup_restore_workspace"))
+            self._view.show()
+            self._app.processEvents()
+            self._splash.set_progress(100, t("startup_ready"))
+            self._splash.finish(self._view)
+            if getattr(self._view, "_startup_restore_pending", False):
+                self._view._startup_restore_pending = False
+                QTimer.singleShot(0, self._view._restore_last_windows_optional)
+        except Exception as exc:
+            self._on_failed(f"{type(exc).__name__}: {exc}")
+
+    @Slot(str)
+    def _on_failed(self, error: str) -> None:
+        self._splash.finish()
+        QMessageBox.critical(
+            None,
+            t("dlg_error_title"),
+            f"{t('startup_open_failed')}\n\n{error}",
+        )
+        self._app.exit(1)
+
+
 
 def main() -> int:
     p = argparse.ArgumentParser()
@@ -253,39 +363,19 @@ def main() -> int:
 
     here = Path(__file__).resolve()
     icon_provider = _icon_provider_factory(here.parent)
-
-    vm = ConfiguratorViewModel(
-        runtime_url,
-        db_uid,
-        dialogs=view,
-        icon_provider=icon_provider,
+    controller = _StartupController(
+        app=app,
+        splash=splash,
+        view=view,
+        runtime_url=runtime_url,
+        db_uid=db_uid,
         db_path=db_path,
-        startup_progress_cb=splash.set_progress,
-        eager_runtime_refresh=True,
+        icon_provider=icon_provider,
+        control_api_host=control_api_host,
+        control_api_port=control_api_port,
     )
-
-    splash.set_progress(90, t("startup_bind_ui"))
-    view.bind(vm)
-    try:
-        from .control_api import start_control_api
-
-        start_control_api(view, vm, host=control_api_host, port=control_api_port)
-    except Exception as exc:
-        print(f"[control] disabled: {type(exc).__name__}: {exc}", flush=True)
-    view.end_tree_rebuild()
-    view.expand_default()
-
-    splash.set_progress(96, t("startup_restore_workspace"))
-    view.show()
-    app.processEvents()
-    splash.set_progress(100, t("startup_ready"))
-    splash.finish(view)
-    if getattr(view, "_startup_restore_pending", False):
-        view._startup_restore_pending = False
-        from PySide6.QtCore import QTimer
-
-        QTimer.singleShot(0, view._restore_last_windows_optional)
-
+    app._startup_controller = controller
+    controller.start()
     return app.exec()
 
 
