@@ -93,7 +93,17 @@ class ConfiguratorControlBridge(QObject):
         if action in ("health", "ping"):
             return {"status": "ok", "ts": time.time()}
         if action == "close":
-            return {"accepted": bool(self._view.close())}
+            accepted = bool(self._view.close())
+            if accepted:
+                app = QApplication.instance()
+                if app is not None:
+                    # The control request is handled on an HTTP worker thread while
+                    # this dispatch runs on Qt's GUI thread.  Explicitly stop the
+                    # application event loop after the response has had time to be
+                    # written; relying only on lastWindowClosed is not deterministic
+                    # in offscreen/CI runs.
+                    QTimer.singleShot(150, app.quit)
+            return {"accepted": accepted}
         if action == "state":
             return self._state(include_tree=bool(payload.get("include_tree")))
         if action == "refresh":
