@@ -138,11 +138,12 @@ def main() -> int:
                     raise AssertionError(f"repeat import did not reset packed storage: {second!r}")
 
                 packed_table = str(second.get("packed_table") or "")
-                rows = db.table(packed_table).select(order_by="rowid") or []
-                if [int(row.get("rowid") or 0) for row in rows] != [1, 2]:
-                    raise AssertionError(f"unexpected rowids after rebuild: {rows!r}")
+                table = db.table(packed_table)
+                rows = table.select() or []
+                if len(rows) != 2:
+                    raise AssertionError(f"unexpected row count after rebuild: {rows!r}")
                 for rowid in (1, 2):
-                    point = db.table(packed_table).select(where={"rowid": rowid}, limit=1)
+                    point = table.select(where={"rowid": rowid}, limit=1)
                     if len(point or []) != 1:
                         raise AssertionError(f"row locator failed for rowid={rowid}")
                 db.verify_integrity()
