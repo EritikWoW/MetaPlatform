@@ -13,6 +13,7 @@ first-class project locale.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Literal
 
 from .tokens import TokenType
@@ -642,6 +643,37 @@ def get_normalization_identifier_profile(language: TargetDslLanguage) -> Identif
     )
 
 
+@lru_cache(maxsize=None)
+def _identifier_alias_groups(category: str) -> dict[str, tuple[str, ...]]:
+    """Build connected identifier alias groups once per category."""
+    adjacency: dict[str, set[str]] = {}
+    for profile in _IDENTIFIER_TARGETS.values():
+        for source, target in getattr(profile, category).items():
+            source_key = str(source or "").casefold()
+            target_key = str(target or "").casefold()
+            if not source_key or not target_key:
+                continue
+            adjacency.setdefault(source_key, set()).add(target_key)
+            adjacency.setdefault(target_key, set()).add(source_key)
+
+    groups: dict[str, tuple[str, ...]] = {}
+    for start in adjacency:
+        if start in groups:
+            continue
+        pending = [start]
+        component: set[str] = set()
+        while pending:
+            key = pending.pop()
+            if key in component:
+                continue
+            component.add(key)
+            pending.extend(adjacency.get(key, ()))
+        aliases = tuple(sorted(component))
+        for key in component:
+            groups[key] = aliases
+    return groups
+
+
 def get_identifier_alias_keys(name: str, category: str) -> tuple[str, ...]:
     """Return case-folded UK/EN/import aliases connected to an identifier.
 
@@ -653,19 +685,7 @@ def get_identifier_alias_keys(name: str, category: str) -> tuple[str, ...]:
     category_s = str(category or "").strip().lower()
     if category_s not in {"callables", "methods", "constructors"}:
         raise ValueError(f"Unsupported identifier alias category: {category}")
-    aliases = {str(name or "").strip().casefold()}
-    aliases.discard("")
-    changed = True
-    while changed:
-        changed = False
-        for profile in _IDENTIFIER_TARGETS.values():
-            mapping = getattr(profile, category_s)
-            for source, target in mapping.items():
-                source_key = str(source or "").casefold()
-                target_key = str(target or "").casefold()
-                if source_key in aliases or target_key in aliases:
-                    before = len(aliases)
-                    aliases.add(source_key)
-                    aliases.add(target_key)
-                    changed = changed or len(aliases) != before
-    return tuple(sorted(aliases))
+    name_key = str(name or "").strip().casefold()
+    if not name_key:
+        return ()
+    return _identifier_alias_groups(category_s).get(name_key, (name_key,))

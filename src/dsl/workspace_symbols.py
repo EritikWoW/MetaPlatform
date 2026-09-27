@@ -327,12 +327,12 @@ class WorkspaceSemanticIndex:
                 if key not in self._ambiguous_aliases:
                     self._module_by_alias.setdefault(key, module)
         self._symbol_by_module_name: dict[tuple[str, str], WorkspaceSymbol] = {}
-        for symbol in self.symbols:
+        self._exported_symbols_by_alias: dict[str, list[tuple[int, WorkspaceSymbol]]] = {}
+        for position, symbol in enumerate(self.symbols):
             self._symbol_by_module_name.setdefault(
                 (symbol.module_guid, symbol.name.casefold()),
                 symbol,
             )
-        for symbol in self.symbols:
             alias_keys = {
                 *get_identifier_alias_keys(symbol.name, "callables"),
                 *get_identifier_alias_keys(symbol.name, "methods"),
@@ -342,6 +342,11 @@ class WorkspaceSemanticIndex:
                     (symbol.module_guid, alias_key),
                     symbol,
                 )
+            if symbol.exported and symbol.kind in {"procedure", "function"}:
+                for alias_key in alias_keys:
+                    self._exported_symbols_by_alias.setdefault(alias_key, []).append(
+                        (position, symbol)
+                    )
         self._symbols_by_module: dict[str, list[WorkspaceSymbol]] = {}
         for symbol in self.symbols:
             self._symbols_by_module.setdefault(symbol.module_guid, []).append(symbol)
@@ -527,18 +532,14 @@ class WorkspaceSemanticIndex:
         if cached is not None:
             return cached
         result: list[str] = []
-        for symbol in self.symbols:
-            if (
-                not symbol.exported
-                or symbol.kind not in {"procedure", "function"}
-                or symbol.module_guid == cache_key[0]
-            ):
-                continue
-            symbol_keys = {
-                *get_identifier_alias_keys(symbol.name, "callables"),
-                *get_identifier_alias_keys(symbol.name, "methods"),
-            }
-            if not lookup_keys.intersection(symbol_keys):
+        candidate_positions = {
+            position
+            for key in lookup_keys
+            for position, _ in self._exported_symbols_by_alias.get(key, ())
+        }
+        for position in sorted(candidate_positions):
+            symbol = self.symbols[position]
+            if symbol.module_guid == cache_key[0]:
                 continue
             module = self._module_by_guid.get(symbol.module_guid)
             if module is None:
