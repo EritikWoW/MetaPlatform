@@ -30,7 +30,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install pip==26.2.1
-          python -m pip install -r requirements.lock
+          python -m pip install --only-binary=:all: -r requirements.lock
           python -m pip install -e . --no-deps --no-build-isolation
 
       - name: Acceptance gates
@@ -42,7 +42,7 @@ jobs:
           python -m src.scripts.import_contract_smoke
           python -m src.scripts.runtime_process_smoke
           python -m src.scripts.release_repro_smoke
-          python -m pip_audit -r requirements.lock --progress-spinner off
+          python -m pip_audit -r requirements.lock --disable-pip --progress-spinner off
 
       - name: Build release artifacts
         run: python -m src.scripts.build_release --output dist
