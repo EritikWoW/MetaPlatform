@@ -1336,11 +1336,31 @@ def test_control_api_close_delegates_to_window(monkeypatch) -> None:
     view.close = lambda: calls.append("close") or True  # type: ignore[attr-defined]
     bridge = ConfiguratorControlBridge(view, _VmStub())
 
+    class _Server:
+        def shutdown(self) -> None:
+            calls.append("server.shutdown")
+
+        def server_close(self) -> None:
+            calls.append("server.close")
+
+    bridge._server = _Server()  # type: ignore[attr-defined]
+
     class _App:
+        def __init__(self) -> None:
+            self._quit_on_last_window = True
+
+        def quitOnLastWindowClosed(self) -> bool:
+            return self._quit_on_last_window
+
+        def setQuitOnLastWindowClosed(self, value: bool) -> None:
+            self._quit_on_last_window = bool(value)
+            calls.append(f"autoquit:{bool(value)}")
+
         def quit(self) -> None:
             calls.append("quit")
 
-    monkeypatch.setattr(control_api_module.QApplication, "instance", lambda: _App())
+    app = _App()
+    monkeypatch.setattr(control_api_module.QApplication, "instance", lambda: app)
     monkeypatch.setattr(
         control_api_module.QTimer,
         "singleShot",
@@ -1350,19 +1370,39 @@ def test_control_api_close_delegates_to_window(monkeypatch) -> None:
     result = bridge._dispatch("close", {})
 
     assert result == {"accepted": True}
-    assert calls == ["close"]
+    assert calls == ["autoquit:False", "close"]
     assert scheduled and scheduled[0][0] >= 100
 
     scheduled[0][1]()
-    assert calls == ["close", "quit"]
+    assert calls == [
+        "autoquit:False",
+        "close",
+        "server.shutdown",
+        "server.close",
+        "quit",
+    ]
 
 
-def test_control_api_rejected_close_does_not_quit_application(monkeypatch) -> None:
+def test_control_api_rejected_close_restores_auto_quit(monkeypatch) -> None:
     view = _ViewStub()
+    calls: list[str] = []
     scheduled: list[object] = []
-    view.close = lambda: False  # type: ignore[attr-defined]
+    view.close = lambda: calls.append("close") or False  # type: ignore[attr-defined]
     bridge = ConfiguratorControlBridge(view, _VmStub())
 
+    class _App:
+        def __init__(self) -> None:
+            self._quit_on_last_window = True
+
+        def quitOnLastWindowClosed(self) -> bool:
+            return self._quit_on_last_window
+
+        def setQuitOnLastWindowClosed(self, value: bool) -> None:
+            self._quit_on_last_window = bool(value)
+            calls.append(f"autoquit:{bool(value)}")
+
+    app = _App()
+    monkeypatch.setattr(control_api_module.QApplication, "instance", lambda: app)
     monkeypatch.setattr(
         control_api_module.QTimer,
         "singleShot",
@@ -1372,4 +1412,6 @@ def test_control_api_rejected_close_does_not_quit_application(monkeypatch) -> No
     result = bridge._dispatch("close", {})
 
     assert result == {"accepted": False}
+    assert calls == ["autoquit:False", "close", "autoquit:True"]
+    assert app._quit_on_last_window is True
     assert scheduled == []
