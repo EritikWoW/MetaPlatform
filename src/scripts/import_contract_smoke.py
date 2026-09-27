@@ -143,7 +143,7 @@ def main() -> int:
                 if len(rows) != 2:
                     raise AssertionError(f"unexpected row count after rebuild: {rows!r}")
                 for rowid in (1, 2):
-                    point = table.select(where={"rowid": rowid}, limit=1)
+                    point = table.select_rowid_range(rowid, rowid, limit=1)
                     if len(point or []) != 1:
                         raise AssertionError(f"row locator failed for rowid={rowid}")
                 db.verify_integrity()
