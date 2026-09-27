@@ -3218,9 +3218,9 @@ MVP-подход:
 - Профильные backend/metadata/data migration и control API tests: `130 passed`; после добавления диагностики — `18 passed`.
 - `compileall -q src`, `git diff --check` и `ci_private_data_check` прошли.
 - Runtime -> Configurator -> Client process smoke завершился успешно: Configurator трижды стартовал/закрылся; три shutdown заняли 0.077, 0.096 и 0.082 с.
-- Read-only smoke на приватном `WorkedData/1Cv8.1CD` (1,237,123,072 байта): общий backend нашёл 3,579 таблиц, 32,184 поля, 7,809 индексов, декодировал DBNames, построил 4,543 metadata objects и 15,229 files. Временный import сохранил строку после reopen; исходный SHA-256 совпал: `6d6146f7d344680c3dabe836e7b2d822e47e426e10e8e1c725d03411ad23bf0a`.
+- Read-only smoke на приватном `WorkedData/1Cv8.1CD` (1,237,123,072 байта): общий backend нашёл 3,583 таблицы, 32,205 полей, 7,813 индексов, декодировал DBNames, построил 4,543 metadata objects и 15,229 files. Временный import сохранил строку после reopen; исходный SHA-256 совпал: `6d6146f7d344680c3dabe836e7b2d822e47e426e10e8e1c725d03411ad23bf0a`.
 
 ### Границы
-- При открытии этой базы reader сообщает о четырёх table descriptors с физическим типом `VB`. Их число теперь видно в диагностике; полноценное декодирование всех этих extended binary types требует отдельной реализации и проверки.
+- Reader поддерживает физический тип `VB` как поле с объявленной inline-шириной и сохраняет его содержимое как сырые bytes. На этой базе теперь открываются 3,583 table descriptors без ошибок (ранее пропускались четыре descriptors с типом `VB`); у этих четырёх таблиц потоки данных пустые, поэтому реальные непустые `VB`-значения этой базой не проверяются. Добавлен синтетический тест ширины 16 байт и raw decoding.
 - Smoke импортировал одну строку (лимит 2) и не доказывает полноту бизнес-миграции, повторный production import, sample/document completeness или live swap. Это остаётся в [issue #2](https://github.com/EritikWoW/MetaPlatform/issues/2).
-- GitHub CI для исходного PR #8 ранее завершился ошибкой на закрытии Configurator из-за prompt о несохранённых изменениях. В local process smoke проверено явно подтверждённое удалённое закрытие; результат удалённого повторного CI ожидает push этой ветки.
+- Для объединённого backend CI прошёл на Windows: полный suite и Runtime + Configurator + Client process smoke зелёные; `pip-audit` также прошёл после обновления исправленных build tools. Текущие изменения `VB` повторно проверяются локально на полном suite; remote CI будет запущен после push.

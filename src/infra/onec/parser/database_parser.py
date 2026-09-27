@@ -68,6 +68,10 @@ def _clean_name(value: str) -> str:
 def calc_raw_field_len(field_type: str, length: int) -> int:
     if field_type == "B":
         return length
+    if field_type == "VB":
+        # VB is an inline variable-binary column whose descriptor declares
+        # its physical row width. Keep its payload raw, just like B.
+        return length
     if field_type == "L":
         return 1
     if field_type == "N":
@@ -88,6 +92,7 @@ def calc_raw_field_len(field_type: str, length: int) -> int:
 def field_type_from_raw(value: str) -> FieldType:
     mapping = {
         "B": FieldType.BINARY,
+        "VB": FieldType.VARIABLE_BINARY,
         "L": FieldType.BOOLEAN,
         "N": FieldType.NUMBER,
         "NC": FieldType.FIXED_STRING,
@@ -708,7 +713,7 @@ class OneCDatabase:
             return None
 
         raw_type = raw_type_from_field(field)
-        if raw_type == "B":
+        if raw_type in {"B", "VB"}:
             return data
         if raw_type == "L":
             return struct.unpack("<?", data[:1])[0]

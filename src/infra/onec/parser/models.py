@@ -11,6 +11,7 @@ from enum import Enum
 
 class FieldType(Enum):
     BINARY = "B"
+    VARIABLE_BINARY = "VB"
     BOOLEAN = "L"
     NUMBER = "N"
     FIXED_STRING = "NC"
