@@ -18,4 +18,4 @@ This document maps the findings in PROJECT_AUDIT_2026-09.md to executable contro
 
 ## Real-data boundary
 
-Public CI cannot prove compatibility with a private representative .1CD without receiving that database. The repository therefore contains an explicit local gate that fails closed on sampling, import errors, missing DBNames bindings, integrity failures and repeat-import row-count drift. This is a data availability boundary, not a silent skipped check.
+Public CI cannot prove compatibility with a private representative .1CD without receiving that database. The repository therefore contains an explicit local gate that fails closed on sampling, import errors, missing DBNames bindings, integrity failures and repeat-import row-count drift; --representative-document additionally verifies active/imported row equality for the target document and all physical tables bound to its metadata UUID. This is a data availability boundary, not a silent skipped check.

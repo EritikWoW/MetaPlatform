@@ -33,10 +33,10 @@ Direct .1CD parsing uses the external Parse1CD backend. Configure META_PARSE1CD_
 Real business databases must not be committed to the repository or uploaded to public CI. Before a release intended for a specific 1C/BAS database, run:
 
 ~~~powershell
-python -m src.scripts.real_onecd_gate --source "C:\Data\Base.1CD" --repeat --report .artifacts\real-onecd-gate.json
+python -m src.scripts.real_onecd_gate --source "C:\Data\Base.1CD" --repeat --representative-document "РеализацияТоваровУслуг" --report .artifacts\real-onecd-gate.json
 ~~~
 
-The gate rejects sample-limited imports, table errors, missing UUID/DBNames bindings, failed integrity checks and repeat-import row-count drift.
+The gate rejects sample-limited imports, table errors, missing UUID/DBNames bindings, failed integrity checks and repeat-import row-count drift. With --representative-document it also requires that document and every related physical table to import all active rows; the JSON report records source/active/imported counts and a first-row field inventory.
 
 ## Rollback
 

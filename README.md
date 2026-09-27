@@ -610,7 +610,7 @@ python -m src.scripts.build_release --output dist
 імпорт:
 
 ~~~powershell
-python -m src.scripts.real_onecd_gate --source "C:\Data\Base.1CD" --repeat --report .artifacts\real-onecd-gate.json
+python -m src.scripts.real_onecd_gate --source "C:\Data\Base.1CD" --repeat --representative-document "РеализацияТоваровУслуг" --report .artifacts\real-onecd-gate.json
 ~~~
 
 Деталі release/rollback: docs/RELEASE.md.
