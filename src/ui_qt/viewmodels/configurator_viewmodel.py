@@ -51,7 +51,8 @@ class ConfiguratorViewModel(
                  *,
                  db_path: str = "",
                  startup_progress_cb: Optional[Callable[[int, str], None]] = None,
-                 eager_runtime_refresh: bool = False):
+                 eager_runtime_refresh: bool = False,
+                 preopened: tuple[ConfiguratorService, Any] | None = None):
         """Створити ViewModel і відкрити базу через Runtime RPC."""
         super().__init__()
         self.runtime_url = runtime_url
@@ -65,7 +66,7 @@ class ConfiguratorViewModel(
 
         self._search: str = ""
         self._subsystem_filter_guid: str = ""
-        self._service = ConfiguratorService()
+        self._service = preopened[0] if preopened is not None else ConfiguratorService()
         self._runtime_refresh_in_flight = False
         self._runtime_refresh_epoch = 0
         self._objects_snapshot: List[ObjectLike] = []
@@ -78,8 +79,11 @@ class ConfiguratorViewModel(
         self._after_tree_rebuild: Optional[Callable[[], None]] = None
         self.runtimeRefreshReady.connect(self._on_runtime_refresh_ready)
         self.runtimeRefreshFailed.connect(self._on_runtime_refresh_failed)
-        self._startup_progress(28, t("startup_runtime_connect"))
-        res = self._service.open_db(runtime_url, db_uid, db_path=db_path)
+        if preopened is None:
+            self._startup_progress(28, t("startup_runtime_connect"))
+            res = self._service.open_db(runtime_url, db_uid, db_path=db_path)
+        else:
+            res = preopened[1]
         self.db_uid = str(getattr(self._service, "db_uid", "") or db_uid or "")
         self.db_path = str(db_path or "")
         _log.info("viewmodel.init source=%s objects=%d", "cache" if res.loaded_from_cache else "runtime", len(res.objects))
