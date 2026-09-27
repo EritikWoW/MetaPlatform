@@ -16,7 +16,7 @@ py -3.13 -m venv .venv
 .venv\Scripts\python.exe -m src.scripts.build_release --output dist
 ~~~
 
-The bundle contains Launcher, Runtime, Configurator, Client, assets, migration code, documentation, the dependency lock and VERSION.json. The build also produces SHA256SUMS.json. Build tooling is pinned and build isolation is disabled so the wheel uses the reviewed environment; SOURCE_DATE_EPOCH and normalized ZIP metadata make repeated builds byte-stable.
+The wheel and source bundle contain Launcher, Runtime, Configurator, Client, runtime icons/styles/assets, migration code, documentation, the dependency lock and VERSION.json. The build also produces SHA256SUMS.json. Build tooling is pinned and build isolation is disabled so the wheel uses the reviewed environment; SOURCE_DATE_EPOCH and normalized ZIP metadata make repeated builds byte-stable.
 
 ## Entry points
 

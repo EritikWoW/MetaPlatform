@@ -36,3 +36,18 @@ include = ["src*"]
 [tool.pytest.ini_options]
 cache_dir = ".pytest_cache"
 testpaths = ["src/tests"]
+
+
+[tool.setuptools.package-data]
+"src" = [
+    "assets/*",
+    "assets/icon/icons/*",
+    "assets/icons/*",
+    "assets/icons/png/*",
+    "assets/icons/svg/*",
+    "client/forms/styles/*",
+    "docs/*",
+    "ui_qt/assets/icons/*",
+    "ui_qt/styles/dark/*",
+    "ui_qt/styles/hybrid/*",
+]

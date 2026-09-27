@@ -78,6 +78,23 @@ def _write_zip_bytes(
     )
 
 
+def _verify_wheel_assets(path: Path) -> None:
+    required = {
+        "src/assets/logo.jpg",
+        "src/assets/icons/svg/table.svg",
+        "src/client/forms/styles/qwidget.qss",
+        "src/ui_qt/assets/icons/schema_requisite.svg",
+        "src/ui_qt/styles/dark/qwidget.qss",
+    }
+    with zipfile.ZipFile(path, "r") as archive:
+        names = set(archive.namelist())
+    missing = sorted(required - names)
+    if missing:
+        raise RuntimeError(
+            f"wheel is missing runtime assets: {missing}"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=ROOT / "dist")
@@ -137,6 +154,7 @@ def main() -> int:
         raise RuntimeError(
             f"expected exactly one wheel for {name} {version}, found {[p.name for p in wheels]}"
         )
+    _verify_wheel_assets(wheels[0])
     artifacts = [wheels[0], bundle]
     checksums = {path.name: _sha256(path) for path in artifacts}
     checksum_path = output / "SHA256SUMS.json"
