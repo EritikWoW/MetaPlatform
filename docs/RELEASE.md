@@ -10,7 +10,7 @@ Use Python 3.13 from a clean checkout:
 py -3.13 -m venv .venv
 .venv\Scripts\python.exe -m pip install pip==26.2.1
 .venv\Scripts\python.exe -m pip install -r requirements.lock
-.venv\Scripts\python.exe -m pip install -e . --no-deps
+.venv\Scripts\python.exe -m pip install -e . --no-deps --no-build-isolation
 .venv\Scripts\python.exe -m src.scripts.import_contract_smoke
 .venv\Scripts\python.exe -m src.scripts.runtime_process_smoke
 .venv\Scripts\python.exe -m src.scripts.build_release --output dist
