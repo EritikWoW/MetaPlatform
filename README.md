@@ -572,3 +572,24 @@ MetaPlatform — незалежний експериментальний про�
 - власна proprietary license — якщо зовнішнє використання та поширення мають бути обмежені.
 
 До публікації `LICENSE` дозвіл на зовнішнє використання, модифікацію або поширення коду не надається.
+
+
+## CI and reproducible development environment
+
+The supported development baseline is Python 3.13. Direct runtime and test
+dependencies are pinned in `requirements.lock`; the same set is used by the
+Windows CI job.
+
+```powershell
+py -3.13 -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install -r requirements.lock
+.venv\Scripts\python.exe -m pip install -e . --no-deps
+.venv\Scripts\python.exe -m pytest -q src/tests
+.venv\Scripts\python.exe -m src.scripts.runtime_process_smoke
+```
+
+CI also compiles all Python modules, rejects tracked database/private-key/token
+artifacts, runs the complete test suite, starts Runtime as a separate process
+for an RPC smoke test, and audits installed Python dependencies for known
+vulnerabilities.

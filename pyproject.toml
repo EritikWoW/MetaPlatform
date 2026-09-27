@@ -1,2 +1,34 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metaplatform"
+version = "0.1.0"
+description = "MetaPlatform configurator, runtime and client"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "PySide6==6.11.2",
+    "zstandard==0.25.0",
+    "Pillow==12.3.0",
+    "openpyxl==3.1.5",
+    "pywin32==312; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "pip-audit==2.10.1",
+]
+
+[project.scripts]
+metaplatform-runtime = "src.scripts.run_runtime_server_cmd:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
 [tool.pytest.ini_options]
-cache_dir = ".cache/pytest-v2"
+cache_dir = ".pytest_cache"
+testpaths = ["src/tests"]

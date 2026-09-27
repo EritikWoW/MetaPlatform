@@ -1,0 +1,9 @@
+# Direct dependency lock used by local development and Windows CI.
+# Transitive dependencies are resolved by pip and audited in CI.
+PySide6==6.11.2
+zstandard==0.25.0
+Pillow==12.3.0
+openpyxl==3.1.5
+pywin32==312; sys_platform == "win32"
+pytest==9.1.1
+pip-audit==2.10.1
