@@ -280,6 +280,11 @@ def main() -> int:
     app.processEvents()
     splash.set_progress(100, t("startup_ready"))
     splash.finish(view)
+    if getattr(view, "_startup_restore_pending", False):
+        view._startup_restore_pending = False
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(0, view._restore_last_windows_optional)
 
     return app.exec()
 
