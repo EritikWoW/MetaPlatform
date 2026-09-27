@@ -29,7 +29,7 @@ jobs:
       - name: Install pinned dependencies
         shell: pwsh
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install pip==26.2.1
           python -m pip install -r requirements.lock
           python -m pip install -e . --no-deps
 
@@ -41,6 +41,7 @@ jobs:
           python -m pytest -q src/tests
           python -m src.scripts.import_contract_smoke
           python -m src.scripts.runtime_process_smoke
+          python -m src.scripts.release_repro_smoke
           python -m pip_audit -r requirements.lock --progress-spinner off
 
       - name: Build release artifacts

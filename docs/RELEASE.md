@@ -8,15 +8,15 @@ Use Python 3.13 from a clean checkout:
 
 ~~~powershell
 py -3.13 -m venv .venv
-.venv\\Scripts\\python.exe -m pip install --upgrade pip
-.venv\\Scripts\\python.exe -m pip install -r requirements.lock
-.venv\\Scripts\\python.exe -m pip install -e . --no-deps
-.venv\\Scripts\\python.exe -m src.scripts.import_contract_smoke
-.venv\\Scripts\\python.exe -m src.scripts.runtime_process_smoke
-.venv\\Scripts\\python.exe -m src.scripts.build_release --output dist
+.venv\Scripts\python.exe -m pip install pip==26.2.1
+.venv\Scripts\python.exe -m pip install -r requirements.lock
+.venv\Scripts\python.exe -m pip install -e . --no-deps
+.venv\Scripts\python.exe -m src.scripts.import_contract_smoke
+.venv\Scripts\python.exe -m src.scripts.runtime_process_smoke
+.venv\Scripts\python.exe -m src.scripts.build_release --output dist
 ~~~
 
-The bundle contains Launcher, Runtime, Configurator, Client, assets, migration code, documentation, the dependency lock and VERSION.json. The build also produces SHA256SUMS.json.
+The bundle contains Launcher, Runtime, Configurator, Client, assets, migration code, documentation, the dependency lock and VERSION.json. The build also produces SHA256SUMS.json. Build tooling is pinned and build isolation is disabled so the wheel uses the reviewed environment; SOURCE_DATE_EPOCH and normalized ZIP metadata make repeated builds byte-stable.
 
 ## Entry points
 
@@ -33,7 +33,7 @@ Direct .1CD parsing uses the external Parse1CD backend. Configure META_PARSE1CD_
 Real business databases must not be committed to the repository or uploaded to public CI. Before a release intended for a specific 1C/BAS database, run:
 
 ~~~powershell
-python -m src.scripts.real_onecd_gate --source "C:\\Data\\Base.1CD" --repeat --report .artifacts\\real-onecd-gate.json
+python -m src.scripts.real_onecd_gate --source "C:\Data\Base.1CD" --repeat --report .artifacts\real-onecd-gate.json
 ~~~
 
 The gate rejects sample-limited imports, table errors, missing UUID/DBNames bindings, failed integrity checks and repeat-import row-count drift.

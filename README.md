@@ -266,8 +266,9 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ### 3. Встановлення залежностей
 
 ```powershell
-python -m pip install --upgrade pip
-python -m pip install -r requirements.lock\npython -m pip install -e . --no-deps
+python -m pip install pip==26.2.1
+python -m pip install -r requirements.lock
+python -m pip install -e . --no-deps
 ```
 
 ### 4. Перевірка середовища
@@ -541,8 +542,8 @@ Staged-імпорт знижує ризик пошкодження активн�
 
 ## Roadmap
 
-- dependency management і lock-файл;
-- packaged Windows build;
+- hash-verified/offline dependency wheelhouse;
+- standalone packaged Windows build;
 - installer;
 - стабільний release profile;
 - Runtime API versioning;
@@ -576,13 +577,12 @@ MetaPlatform — незалежний експериментальний про�
 
 ## CI and reproducible development environment
 
-The supported development baseline is Python 3.13. Direct runtime and test
-dependencies are pinned in `requirements.lock`; the same set is used by the
-Windows CI job.
+The supported development baseline is Python 3.13. The complete CI/release dependency set is pinned in `requirements.lock`; the
+same set is used by the Windows CI job.
 
 ```powershell
 py -3.13 -m venv .venv
-.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install pip==26.2.1
 .venv\Scripts\python.exe -m pip install -r requirements.lock
 .venv\Scripts\python.exe -m pip install -e . --no-deps
 .venv\Scripts\python.exe -m pytest -q src/tests
@@ -610,7 +610,7 @@ python -m src.scripts.build_release --output dist
 імпорт:
 
 ~~~powershell
-python -m src.scripts.real_onecd_gate --source "C:\\Data\\Base.1CD" --repeat --report .artifacts\\real-onecd-gate.json
+python -m src.scripts.real_onecd_gate --source "C:\Data\Base.1CD" --repeat --report .artifacts\real-onecd-gate.json
 ~~~
 
 Деталі release/rollback: docs/RELEASE.md.

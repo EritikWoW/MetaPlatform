@@ -1,10 +1,11 @@
-"""Build a reproducible MetaPlatform wheel and source release bundle."""
+"""Build deterministic MetaPlatform wheel and source release bundle."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tomllib
@@ -13,6 +14,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+SOURCE_DATE_EPOCH = "946684800"  # 2000-01-01T00:00:00Z
+ZIP_DATE_TIME = (2000, 1, 1, 0, 0, 0)
 TOP_LEVEL_FILES = (
     "README.md",
     "ARCHITECTURE.md",
@@ -54,6 +57,27 @@ def _iter_source_files():
                 yield path, path.relative_to(ROOT)
 
 
+def _zip_info(name: str) -> zipfile.ZipInfo:
+    info = zipfile.ZipInfo(name, ZIP_DATE_TIME)
+    info.create_system = 3
+    info.external_attr = (0o644 & 0xFFFF) << 16
+    info.compress_type = zipfile.ZIP_DEFLATED
+    return info
+
+
+def _write_zip_bytes(
+    archive: zipfile.ZipFile,
+    name: str,
+    data: bytes,
+) -> None:
+    archive.writestr(
+        _zip_info(name),
+        data,
+        compress_type=zipfile.ZIP_DEFLATED,
+        compresslevel=9,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=ROOT / "dist")
@@ -66,10 +90,23 @@ def main() -> int:
     name = str(project["project"]["name"])
     bundle = output / f"{name}-{version}-windows-source.zip"
 
+    env = os.environ.copy()
+    env.setdefault("SOURCE_DATE_EPOCH", SOURCE_DATE_EPOCH)
     subprocess.run(
-        [sys.executable, "-m", "pip", "wheel", str(ROOT), "--no-deps", "-w", str(output)],
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "wheel",
+            str(ROOT),
+            "--no-deps",
+            "--no-build-isolation",
+            "-w",
+            str(output),
+        ],
         check=True,
         cwd=ROOT,
+        env=env,
     )
 
     metadata = {
@@ -78,27 +115,41 @@ def main() -> int:
         "python": project["project"]["requires-python"],
         "entry_points": dict(project["project"].get("scripts") or {}),
         "dependency_lock": "requirements.lock",
+        "source_date_epoch": env["SOURCE_DATE_EPOCH"],
         "rollback": "Install the previous wheel/source bundle and restore the pre-import mpdb backup.",
     }
-    with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+    with zipfile.ZipFile(bundle, "w") as archive:
         for path, rel in _iter_source_files():
-            archive.write(path, rel.as_posix())
-        archive.writestr(
+            _write_zip_bytes(archive, rel.as_posix(), path.read_bytes())
+        _write_zip_bytes(
+            archive,
             "VERSION.json",
-            json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
+            (json.dumps(metadata, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
         )
 
-    artifacts = [
-        path for path in output.iterdir()
-        if path.is_file() and path.suffix in {".whl", ".zip"}
-    ]
-    checksums = {path.name: _sha256(path) for path in sorted(artifacts)}
+    wheel_prefix = name.replace("-", "_") + "-" + version + "-"
+    wheels = sorted(
+        path
+        for path in output.glob("*.whl")
+        if path.name.startswith(wheel_prefix)
+    )
+    if len(wheels) != 1:
+        raise RuntimeError(
+            f"expected exactly one wheel for {name} {version}, found {[p.name for p in wheels]}"
+        )
+    artifacts = [wheels[0], bundle]
+    checksums = {path.name: _sha256(path) for path in artifacts}
     checksum_path = output / "SHA256SUMS.json"
     checksum_path.write_text(
         json.dumps(checksums, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    print(json.dumps({"status": "ok", "version": version, "artifacts": checksums}, sort_keys=True))
+    print(
+        json.dumps(
+            {"status": "ok", "version": version, "artifacts": checksums},
+            sort_keys=True,
+        )
+    )
     return 0
 
 
