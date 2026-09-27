@@ -14,7 +14,7 @@ This document maps the findings in PROJECT_AUDIT_2026-09.md to executable contro
 1. Cold start and shutdown — the process smoke records startup/open/shutdown timings and fails when budgets are exceeded. Runtime RPC logs include request ID, action, session ID and duration.
 2. IDE — the branch contains the existing UK/EN lexer, formatting, completion, navigation, signature-help and semantic-index work plus the additional diagnostics/snippet regressions from this remediation branch.
 3. CI — Windows CI runs compileall, private-data checks, the full pytest suite, synthetic import smoke, Runtime/Configurator/Client process smoke and dependency vulnerability audit. GitHub actions are pinned to commit SHAs.
-4. Reproducible setup/release — Python 3.13 and direct dependencies are pinned; console entry points and a deterministic wheel/source release bundle with checksums and rollback documentation are provided.
+4. Reproducible setup/release — Python 3.13 and the complete CI dependency set are pinned; console entry points and a deterministic wheel/source release bundle with checksums and rollback documentation are provided.
 
 ## Real-data boundary
 
