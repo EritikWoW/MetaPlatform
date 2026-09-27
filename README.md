@@ -230,7 +230,7 @@ Structure cache прискорює запуск, але не замінює Mani
 
 MetaPlatform наразі запускається з вихідного коду.
 
-Готовий installer і повністю відтворюваний packaged release ще перебувають у розробці.
+Відтворюваний wheel/source release bundle уже збирається штатним build-скриптом; окремий standalone installer ще перебуває у розробці.
 
 ### Перевірене середовище
 
