@@ -92,6 +92,8 @@ class ConfiguratorControlBridge(QObject):
         action = str(action or "").strip().lower()
         if action in ("health", "ping"):
             return {"status": "ok", "ts": time.time()}
+        if action == "close":
+            return {"accepted": bool(self._view.close())}
         if action == "state":
             return self._state(include_tree=bool(payload.get("include_tree")))
         if action == "refresh":

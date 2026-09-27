@@ -23,7 +23,11 @@ dev = [
 ]
 
 [project.scripts]
+metaplatform-launcher = "src.scripts.run_launcher_qt:main"
+metaplatform-configurator = "src.configurator.configurator_app:main"
+metaplatform-client = "src.client.client_app:main"
 metaplatform-runtime = "src.scripts.run_runtime_server_cmd:main"
+metaplatform-runtime-admin = "src.runtime.admin_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -84,6 +84,7 @@ class VirtualOneCDataTables:
         self._binding_error = ""
         self._field_aliases: dict[str, dict[str, list[tuple[str, str]]]] = {}
         self._migration_limit: int | None = None
+        self._reference_presentation_cache: dict[str, str] | None = None
         self._load_context()
 
     # ------------------------------------------------------------------
@@ -731,7 +732,7 @@ class VirtualOneCDataTables:
             if stored not in payload:
                 continue
             value = payload[stored]
-            row.setdefault(name, self._ui_value(value))
+            row.setdefault(name, self._ui_value_with_reference_resolution(value))
             if isinstance(value, dict):
                 row.setdefault(f"_{name.casefold()}_raw", dict(value))
                 guid = self._extract_ref_uuid(value)
@@ -918,7 +919,7 @@ class VirtualOneCDataTables:
             payload = {}
         row: dict[str, Any] = {}
         for key, value in payload.items():
-            row[str(key)] = self._ui_value(value)
+            row[str(key)] = self._ui_value_with_reference_resolution(value)
             if isinstance(value, dict):
                 row[f"_{str(key).lower()}_raw"] = dict(value)
         self._add_semantic_fields(row, payload, ref)
@@ -945,6 +946,72 @@ class VirtualOneCDataTables:
         raw = hashlib.sha1(str(source_table or "").encode("utf-8", errors="ignore")).digest()
         prefix = int.from_bytes(raw[:6], "big")
         return (prefix << 20) | max(0, int(source_row_index or 0))
+
+    def _reference_presentations(self) -> dict[str, str]:
+        """Build a UUID -> presentation map from imported catalog/enum rows.
+
+        Parse1CD normally provides resolved_name on reference values. Some
+        configurations omit it for enum/reference variants, so Runtime keeps a
+        deterministic fallback sourced from the imported target rows instead
+        of showing a raw UUID to the user.
+        """
+        cached = self._reference_presentation_cache
+        if cached is not None:
+            return cached
+
+        catalog_sources = {
+            str(ref.source_table or "").strip()
+            for refs in self.object_refs_by_table.values()
+            for ref in refs
+            if ref.kind == "catalog" and str(ref.source_table or "").strip()
+        }
+        presentations: dict[str, str] = {}
+        if catalog_sources:
+            try:
+                packed_rows = self._load_all_packed_rows()
+            except Exception:
+                packed_rows = []
+            for packed_row in packed_rows:
+                source_table = str(packed_row.get("__source_table") or "").strip()
+                if source_table not in catalog_sources:
+                    continue
+                try:
+                    payload = self._row_payload(dict(packed_row))
+                except Exception:
+                    continue
+                if not isinstance(payload, dict):
+                    continue
+                uid = self._extract_ref_uuid(payload.get("idrref")).strip()
+                if not uid or not uid.replace("-", "").strip("0"):
+                    continue
+                display = ""
+                for key in ("description", "name", "title", "code"):
+                    candidate = self._ui_value(payload.get(key))
+                    if candidate not in (None, ""):
+                        display = str(candidate)
+                        break
+                if display:
+                    presentations.setdefault(uid.casefold(), display)
+
+        self._reference_presentation_cache = presentations
+        return presentations
+
+    def _ui_value_with_reference_resolution(self, value: Any) -> Any:
+        shown = self._ui_value(value)
+        if not isinstance(value, dict):
+            return shown
+        uid = self._extract_ref_uuid(value).strip()
+        if not uid or not uid.replace("-", "").strip("0"):
+            return shown
+        raw_candidates = {
+            str(value.get("uuid") or ""),
+            str(value.get("uuid_1c") or ""),
+            str(value.get("raw_hex") or ""),
+            "",
+        }
+        if str(shown or "") not in raw_candidates:
+            return shown
+        return self._reference_presentations().get(uid.casefold(), shown)
 
     @staticmethod
     def _ui_value(value: Any) -> Any:

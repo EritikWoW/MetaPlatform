@@ -43,7 +43,10 @@ jobs:
       - name: Run test suite
         run: python -m pytest -q src/tests
 
-      - name: Runtime process smoke test
+      - name: Synthetic 1CD import contract smoke
+        run: python -m src.scripts.import_contract_smoke
+
+      - name: Runtime + Configurator + Client process smoke
         run: python -m src.scripts.runtime_process_smoke
 
       - name: Audit Python dependencies

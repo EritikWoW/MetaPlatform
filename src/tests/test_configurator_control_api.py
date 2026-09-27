@@ -1327,3 +1327,15 @@ def test_control_api_releases_active_pause_without_loaded_editor() -> None:
 
     assert result == {"accepted": True, "command": "continue"}
     assert command_state["value"] == "continue"
+
+
+def test_control_api_close_delegates_to_window() -> None:
+    view = _ViewStub()
+    calls: list[str] = []
+    view.close = lambda: calls.append("close") or True  # type: ignore[attr-defined]
+    bridge = ConfiguratorControlBridge(view, _VmStub())
+
+    result = bridge._dispatch("close", {})
+
+    assert result == {"accepted": True}
+    assert calls == ["close"]

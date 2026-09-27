@@ -267,7 +267,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ```powershell
 python -m pip install --upgrade pip
-python -m pip install PySide6 pytest zstandard Pillow openpyxl pywin32
+python -m pip install -r requirements.lock\npython -m pip install -e . --no-deps
 ```
 
 ### 4. Перевірка середовища
@@ -487,7 +487,7 @@ MetaPlatform/
 | Client | Відтворює підтриману metadata/form-модель |
 | XML import | Підтримується |
 | Direct `.1CD` import | Підтримує значну частину metadata-структури |
-| Packaging | Не готово |
+| Packaging | Відтворюваний wheel/source bundle; standalone installer ще не готовий |
 | Installer | Не готово |
 | Stable public API | Відсутній |
 
@@ -495,8 +495,8 @@ MetaPlatform/
 
 - Немає стабільного публічного API.
 - Не гарантується backward compatibility.
-- Немає dependency lock.
-- Немає відтворюваного packaged release.
+- Прямі Python-залежності зафіксовані у requirements.lock; CI додатково виконує vulnerability audit.
+- Є відтворюваний wheel/source bundle; standalone installer поки відсутній.
 - Немає installer.
 - Імпорт 1C/BAS не означає повної бінарної, мовної або поведінкової сумісності.
 - Не всі формати форм і metadata-об'єктів підтримані однаково.
@@ -593,3 +593,24 @@ CI also compiles all Python modules, rejects tracked database/private-key/token
 artifacts, runs the complete test suite, starts Runtime as a separate process
 for an RPC smoke test, and audits installed Python dependencies for known
 vulnerabilities.
+
+
+## Audit acceptance gates
+
+Перед merge/release виконуються окремі acceptance gates:
+
+~~~powershell
+python -m src.scripts.import_contract_smoke
+python -m src.scripts.runtime_process_smoke
+python -m src.scripts.build_release --output dist
+~~~
+
+Для representative .1CD реальні бізнес-дані не передаються в CI. Локальний
+повний gate запускається без sample-ліміту і може додатково перевірити повторний
+імпорт:
+
+~~~powershell
+python -m src.scripts.real_onecd_gate --source "C:\\Data\\Base.1CD" --repeat --report .artifacts\\real-onecd-gate.json
+~~~
+
+Деталі release/rollback: docs/RELEASE.md.
