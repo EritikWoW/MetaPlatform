@@ -1041,6 +1041,15 @@ def migrate_onecd_data_to_mpdb(
                     rich_refs=True,
                     resolver=resolver,
                 ):
+                    # Enforce the sampling contract in our own loop as well.
+                    # External Parse1CD backends are allowed to ignore their
+                    # limit argument; Runtime must still never import more rows
+                    # than the explicit operator limit.
+                    if (
+                        limit_per_table is not None
+                        and source_row_index >= max(0, int(limit_per_table))
+                    ):
+                        break
                     source_row_index += 1
                     normalized_row = _normalize_row(
                         dict(row),
