@@ -1,18 +1,15 @@
 from __future__ import annotations
 
 import contextlib
-import importlib.util
 import io
 import json
-import os
 import re
-import sys
 import zlib
 from collections import Counter
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
+from .backend import load_backend
 from .source_compat import (
     DT_SIGNATURE,
     find_xmlconf_root,
@@ -91,10 +88,6 @@ ONECD_TABLE_PREFIX_TO_FAMILY = (
     ("_System", "system"),
 )
 SOURCE_SNAPSHOT_ASSET_KEY = "onec_analysis/source_snapshot.json"
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
 
 
 def _dedupe_paths(paths: Iterable[Path]) -> list[Path]:
@@ -340,101 +333,9 @@ def _classify_onecd_table_family(name: str) -> str:
     return "other"
 
 
-def _load_module_from_path(module_name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot create import spec for {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-def _candidate_parser_roots() -> list[Path]:
-    candidates: list[Path] = []
-    env_value = str(os.environ.get("META_PARSE1CD_PARSER") or "").strip()
-    if env_value:
-        candidates.append(Path(env_value))
-    candidates.append(_repo_root() / "WorkedData" / "Parse1CD" / "parser")
-    candidates.append(Path("F:/Parse1CD/parser"))
-
-    roots: list[Path] = []
-    seen: set[str] = set()
-    for candidate in candidates:
-        if (candidate / "database_parser.py").exists():
-            root = candidate
-        elif (candidate / "parser" / "database_parser.py").exists():
-            root = candidate / "parser"
-        else:
-            continue
-        try:
-            key = str(root.resolve()).lower()
-        except Exception:
-            key = str(root).lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        roots.append(root)
-    return roots
-
-
-@lru_cache(maxsize=1)
 def _load_parse1cd_backend() -> tuple[Path, Any]:
-    last_error: Exception | None = None
-    for parser_root in _candidate_parser_roots():
-        previous_modules = {
-            name: sys.modules.get(name)
-            for name in ("models", "utils", "value_decoder", "reference_resolver", "schema_reader", "database_parser")
-        }
-        try:
-            sys.modules["models"] = _load_module_from_path("models", parser_root / "models.py")
-            for module_name in ("utils", "value_decoder", "reference_resolver", "schema_reader"):
-                module_path = parser_root / f"{module_name}.py"
-                if module_path.exists():
-                    sys.modules[module_name] = _load_module_from_path(module_name, module_path)
-            database_parser = _load_module_from_path("database_parser", parser_root / "database_parser.py")
-            from .parse1cd_compat import patch_parse1cd_database_parser
-
-            patch_parse1cd_database_parser(database_parser)
-            return parser_root, database_parser
-        except Exception as exc:
-            last_error = exc
-        finally:
-            for name, module in previous_modules.items():
-                if module is None:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = module
-    raise FileNotFoundError(f"Parse1CD backend not found or could not be loaded: {last_error}")
-
-
-def _make_read_only_onecd_class(base_cls):
-    try:
-        source_doc = str(getattr(sys.modules.get(base_cls.__module__), "__doc__", "") or "").lower()
-    except Exception:
-        source_doc = ""
-    if "read-only" in source_doc or not hasattr(base_cls, "_parse_file_header"):
-        return base_cls
-
-    class ReadOnlyOneCDatabase(base_cls):
-        def open(self) -> bool:
-            try:
-                if not Path(self.filepath).exists():
-                    return False
-                self._fh = open(self.filepath, "rb")
-                self.header = self._parse_file_header()
-                if not self.header:
-                    return False
-                if self.db_version >= (8, 3):
-                    ok = self._open_83()
-                else:
-                    ok = self._open_82()
-                return bool(ok and self.tables)
-            except Exception:
-                self.close()
-                return False
-
-    return ReadOnlyOneCDatabase
+    backend = load_backend()
+    return backend.parser_root, backend.database_parser
 
 
 def inspect_1cd_database(
@@ -448,8 +349,7 @@ def inspect_1cd_database(
 
     try:
         parser_root, backend = _load_parse1cd_backend()
-        db_cls = _make_read_only_onecd_class(backend.OneCDatabase)
-        db = db_cls(str(onecd_path))
+        db = backend.OneCDatabase(str(onecd_path))
         with contextlib.redirect_stdout(io.StringIO()):
             opened = db.open()
         summary["parser_backend"] = "Parse1CD"
@@ -515,6 +415,9 @@ def inspect_1cd_database(
                     ),
                     "tables_with_data_pages": sum(1 for pages in data_pages.values() if pages),
                     "tables_with_blob_fields": tables_with_blob_fields,
+                    "table_description_errors": len(
+                        list(getattr(db, "_description_errors", []) or [])
+                    ),
                     "total_fields": total_fields,
                     "total_indexes": total_indexes,
                     "total_blob_fields": total_blob_fields,

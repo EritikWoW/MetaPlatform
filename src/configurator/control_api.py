@@ -93,15 +93,23 @@ class ConfiguratorControlBridge(QObject):
         if action in ("health", "ping"):
             return {"status": "ok", "ts": time.time()}
         if action == "close":
-            accepted = bool(self._view.close())
+            discard_unsaved = bool(payload.get("discard_unsaved_changes"))
+            if discard_unsaved:
+                self._view._control_discard_unsaved_changes = True
+            try:
+                accepted = bool(self._view.close())
+            finally:
+                if discard_unsaved:
+                    try:
+                        del self._view._control_discard_unsaved_changes
+                    except AttributeError:
+                        pass
             if accepted:
                 app = QApplication.instance()
                 if app is not None:
-                    # The control request is handled on an HTTP worker thread while
-                    # this dispatch runs on Qt's GUI thread.  Explicitly stop the
-                    # application event loop after the response has had time to be
-                    # written; relying only on lastWindowClosed is not deterministic
-                    # in offscreen/CI runs.
+                    # The request is handled on an HTTP worker while this dispatch
+                    # runs on Qt's GUI thread. Let the response be written before
+                    # quitting because lastWindowClosed is not deterministic offscreen.
                     QTimer.singleShot(150, app.quit)
             return {"accepted": accepted}
         if action == "state":

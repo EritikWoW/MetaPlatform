@@ -19,7 +19,6 @@ from .physical_schema import (
     XMLCONF_DIR_TO_FAMILY,
     _classify_onecd_table_family,
     _load_parse1cd_backend,
-    _make_read_only_onecd_class,
     build_onec_compatibility_snapshot,
     discover_related_onec_sources,
 )
@@ -332,8 +331,7 @@ def inspect_1cd_table_catalog(path: str | Path) -> list[dict[str, Any]]:
     if not onecd_path.exists():
         return []
     parser_root, backend = _load_parse1cd_backend()
-    db_cls = _make_read_only_onecd_class(backend.OneCDatabase)
-    db = db_cls(str(onecd_path))
+    db = backend.OneCDatabase(str(onecd_path))
     opened = db.open()
     if not opened:
         return []

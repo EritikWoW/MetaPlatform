@@ -28,7 +28,7 @@ The wheel and source bundle contain Launcher, Runtime, Configurator, Client, run
 
 ## Representative .1CD gate
 
-Direct .1CD parsing uses the external Parse1CD backend. Configure META_PARSE1CD_PARSER to an authorised parser checkout before running this gate; parser-specific unit tests are skipped when that optional backend is absent from a clean public checkout.
+Direct .1CD parsing uses the read-only backend bundled in `src/infra/onec/parser`; no separate Parse1CD installation is needed. Run the explicit local smoke against a representative database with `python -m src.scripts.check_onecd_backend --source "C:\Data\Base.1CD" --limit 3`. This checks physical and semantic reads, DBNames, a bounded sample in a disposable mpdb, and source hash stability without exposing row values.
 
 Real business databases must not be committed to the repository or uploaded to public CI. Before a release intended for a specific 1C/BAS database, run:
 

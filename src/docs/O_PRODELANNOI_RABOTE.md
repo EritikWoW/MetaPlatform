@@ -3202,3 +3202,25 @@ MVP-подход:
   UK/EN popup відрендерено та переглянуто. Precise diagnostics, IDE compile
   context, повна incremental analysis, snippets/tab stops залишаються в черзі
   `src/docs/IDE_STATUS.md`; їх не оголошено виконаними.
+
+
+## 2026-09-27 - Parse1CD ядро включено в MetaPlatform
+
+### Что изменено
+- Актуальный read-only reader, schema reader, reference resolver и decoder находятся в `src/infra/onec/parser`; UI Parse1CD и запись обратно в `.1CD` не перенесены.
+- `src/infra/onec/backend.py` является общей точкой загрузки. Проверка physical schema, semantic `OneCDConfigSource` и business-data migration обращаются к одному `OneCDatabase`; нет поиска `META_PARSE1CD_PARSER`, `WorkedData/Parse1CD`, `F:/Parse1CD` или загрузки одноимённых глобальных Python-модулей.
+- Сохранены legacy consumer contracts для скрытой версии записей, индексов, файлов `Params/DBNames` и чтения BLOB. В physical-schema summary добавлено явное число ошибок table-descriptor parsing.
+- Штатный импорт уже живёт в Configurator -> Runtime; самостоятельный запуск Parse1CD для импорта не требуется. Table-browser/export GUI Parse1CD не объявлен перенесённым.
+- Реальный bounded smoke `src.scripts.check_onecd_backend` использует только указанный оператором `.1CD`, пишет не в источник, импортирует максимум выбранное число записей во временный `mpdb`, повторно открывает её и проверяет SHA-256 источника до и после.
+
+### Проверка
+- Полный `pytest -q src/tests`: `1351 passed, 1 skipped, 4 warnings`.
+- Профильные backend/metadata/data migration и control API tests: `130 passed`; после добавления диагностики — `18 passed`.
+- `compileall -q src`, `git diff --check` и `ci_private_data_check` прошли.
+- Runtime -> Configurator -> Client process smoke завершился успешно: Configurator трижды стартовал/закрылся; три shutdown заняли 0.077, 0.096 и 0.082 с.
+- Read-only smoke на приватном `WorkedData/1Cv8.1CD` (1,237,123,072 байта): общий backend нашёл 3,579 таблиц, 32,184 поля, 7,809 индексов, декодировал DBNames, построил 4,543 metadata objects и 15,229 files. Временный import сохранил строку после reopen; исходный SHA-256 совпал: `6d6146f7d344680c3dabe836e7b2d822e47e426e10e8e1c725d03411ad23bf0a`.
+
+### Границы
+- При открытии этой базы reader сообщает о четырёх table descriptors с физическим типом `VB`. Их число теперь видно в диагностике; полноценное декодирование всех этих extended binary types требует отдельной реализации и проверки.
+- Smoke импортировал одну строку (лимит 2) и не доказывает полноту бизнес-миграции, повторный production import, sample/document completeness или live swap. Это остаётся в [issue #2](https://github.com/EritikWoW/MetaPlatform/issues/2).
+- GitHub CI для исходного PR #8 ранее завершился ошибкой на закрытии Configurator из-за prompt о несохранённых изменениях. В local process smoke проверено явно подтверждённое удалённое закрытие; результат удалённого повторного CI ожидает push этой ветки.

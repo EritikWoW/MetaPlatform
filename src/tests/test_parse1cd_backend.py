@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-import pytest
-
 from src.infra.onec.physical_schema import _load_parse1cd_backend
 
 
 def _backend():
-    try:
-        _parser_root, backend = _load_parse1cd_backend()
-    except FileNotFoundError as exc:
-        pytest.skip(f"optional Parse1CD backend is not installed: {exc}")
+    _parser_root, backend = _load_parse1cd_backend()
     return backend
 
 

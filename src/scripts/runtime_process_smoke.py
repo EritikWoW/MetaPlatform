@@ -343,7 +343,10 @@ def main() -> int:
 
                 close_result = _http_json(
                     f"{control_url}/command",
-                    payload={"action": "close", "payload": {}},
+                    payload={
+                        "action": "close",
+                        "payload": {"discard_unsaved_changes": True},
+                    },
                     timeout=BUDGETS["configurator_shutdown"],
                 ).get("data", {})
                 if not close_result.get("accepted"):
